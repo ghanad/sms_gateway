@@ -39,6 +39,8 @@ async def idempotency_middleware(request: Request, call_next):
             "Returning cached response for idempotency key.",
             extra={"idempotency_key": idempotency_key, "client_api_key": client_api_key, "cached_status_code": cached_data['status_code']}
         )
+        if cached_data['status_code'] >= 400:
+            await redis_client.expire(redis_key, settings.IDEMPOTENCY_TTL_SECONDS)
         return Response(
             content=cached_data['body'],
             status_code=cached_data['status_code'],

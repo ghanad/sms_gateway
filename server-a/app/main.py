@@ -8,6 +8,8 @@ from uuid import uuid4, UUID
 
 import aio_pika
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 from prometheus_client import Summary
@@ -131,11 +133,28 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         content=content
     )
 
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    tracking_id = getattr(request.state, "tracking_id", None)
+    error_response = ErrorResponse(
+        error_code="INVALID_PAYLOAD",
+        message="Invalid request payload.",
+        details={"errors": jsonable_encoder(exc.errors())},
+        tracking_id=tracking_id
+    )
+    content = json.loads(json.dumps(error_response.model_dump(exclude_none=True), default=custom_json_serializer))
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=content)
+
+async def get_client_context_dep() -> ClientContext:
+    return await get_client_context()
+
+
 @app.post("/api/v1/sms/send", response_model=SendSmsResponse, status_code=status.HTTP_202_ACCEPTED)
 async def send_sms(
     request: Request,
     sms_request: SendSmsRequest,
-    client: ClientContext = Depends(get_client_context)
+    client: ClientContext = Depends(get_client_context_dep)
 ):
     start_time = asyncio.get_event_loop().time()
     SMS_SEND_REQUESTS_TOTAL.inc()
@@ -170,27 +189,6 @@ async def send_sms(
             message="Request accepted for processing.",
             tracking_id=tracking_id
         ).model_dump_json()
-
-        # If idempotency key is present, store the successful response
-        idempotency_key = request.headers.get("Idempotency-Key")
-        if idempotency_key:
-            redis_client_instance = await get_redis_client()
-            redis_key = f"idem:{client.api_key}:{idempotency_key}"
-            cache_data = {
-                "status_code": status.HTTP_202_ACCEPTED,
-                "body": response_content,
-                "media_type": "application/json",
-                "cached_at": datetime.utcnow().isoformat()
-            }
-            await redis_client_instance.set(
-                redis_key,
-                json.dumps(cache_data),
-                ex=settings.IDEMPOTENCY_TTL_SECONDS
-            )
-            logger.info(
-                "Stored successful response for idempotency key.",
-                extra={"tracking_id": str(tracking_id), "client_api_key": client.api_key, "idempotency_key": idempotency_key}
-            )
 
         SMS_SEND_REQUEST_SUCCESS_TOTAL.inc()
         return JSONResponse(content=json.loads(response_content), status_code=status.HTTP_202_ACCEPTED)

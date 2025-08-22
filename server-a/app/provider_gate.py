@@ -2,7 +2,8 @@ import logging
 from typing import List, Optional, Tuple
 from fastapi import HTTPException, status, Request
 
-from app.config import get_settings, ProviderConfig
+from app import config
+from app.config import ProviderConfig
 from app.metrics import (
     SMS_REQUEST_REJECTED_UNKNOWN_PROVIDER_TOTAL,
     SMS_REQUEST_REJECTED_PROVIDER_DISABLED_TOTAL,
@@ -10,17 +11,20 @@ from app.metrics import (
 )
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 class ProviderGate:
     def __init__(self):
-        self.settings = get_settings()
+        self.settings = config.get_settings()
         self.provider_alias_map = self.settings.provider_alias_map
         self.providers_config = self.settings.providers
 
     def _get_canonical_provider_name(self, provider_name: str) -> Optional[str]:
-        """Returns the canonical provider name, case-insensitively."""
-        return self.provider_alias_map.get(provider_name.lower())
+        """Returns the canonical provider name using normalized keys with a lowercase fallback."""
+        key = config.normalize_provider_key(provider_name)
+        canonical = self.provider_alias_map.get(key)
+        if canonical is None:
+            canonical = self.provider_alias_map.get(provider_name.lower())
+        return canonical
 
     def _is_provider_active_and_operational(self, canonical_name: str) -> bool:
         """Checks if a provider is active and operational."""
@@ -149,3 +153,4 @@ class ProviderGate:
             return effective_providers
 
 provider_gate = ProviderGate()
+
