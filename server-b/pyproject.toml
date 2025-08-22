@@ -16,6 +16,9 @@ dependencies = [
     "httpx",
     "prometheus-client",
     "python-json-logger",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
 ]
 
 [project.optional-dependencies]
