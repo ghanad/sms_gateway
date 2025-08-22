@@ -20,6 +20,7 @@ EXCLUDE_FILES = {
     'package-lock.json',
     'yarn.lock',
     'pnpm-lock.yaml',
+    'output.json'
 }
 
 # File extensions considered source code
@@ -91,7 +92,7 @@ def collect_files(root: Path) -> dict[str, str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Convert project source code to JSON")
     parser.add_argument("root", nargs="?", default=".", help="Project root directory")
-    parser.add_argument("-o", "--output", help="Output JSON file (defaults to stdout)")
+    parser.add_argument("-o", "--output", default="output.json", help="Output JSON file (defaults to output.json)")
     args = parser.parse_args()
 
     root_path = Path(args.root).resolve()
@@ -103,8 +104,6 @@ def main() -> None:
     if args.output:
         with open(args.output, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
-    else:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
