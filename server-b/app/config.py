@@ -1,4 +1,7 @@
-from pydantic import Field
+import json
+from typing import List, Union
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,7 +17,33 @@ class Settings(BaseSettings):
 
     database_url: str = Field(..., env="DATABASE_URL")
 
-    allowed_origins: list[str] = Field(default_factory=list, env="ALLOWED_ORIGINS")
+    allowed_origins: Union[List[str], str] = Field(default_factory=list, env="ALLOWED_ORIGINS")
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, v):
+        """Parse ALLOWED_ORIGINS from env or input.
+
+        The env value may be provided as a JSON array or as a comma-separated
+        string. This validator normalizes both formats into a list of strings
+        and gracefully handles empty or missing values.
+        """
+        if v is None or v == "":
+            return []
+        if isinstance(v, str):
+            v = v.strip()
+            # Try to interpret the string as JSON first
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return [str(item) for item in parsed]
+            except json.JSONDecodeError:
+                pass
+            # Fallback: treat as comma-separated list
+            return [item.strip() for item in v.split(",") if item.strip()]
+        if isinstance(v, list):
+            return v
+        raise TypeError("allowed_origins must be a string or list")
 
     max_send_attempts: int = Field(10, env="MAX_SEND_ATTEMPTS")
     default_ttl_seconds: int = Field(3600, env="DEFAULT_TTL_SECONDS")
