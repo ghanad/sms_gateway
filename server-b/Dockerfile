@@ -8,4 +8,4 @@ RUN pip install --no-cache-dir fastapi uvicorn[standard] aio-pika sqlalchemy[asy
 COPY app ./app
 COPY migrations ./migrations
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "${SERVER_B_PORT:-9000}"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${SERVER_B_PORT:-9000}
