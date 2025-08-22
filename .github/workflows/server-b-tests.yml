@@ -1,4 +1,4 @@
-name: Python Tests
+name: Server B Tests
 
 on:
   push:
@@ -11,9 +11,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      CLIENT_CONFIG: '{"test_client": {"name": "Test Client", "is_active": true, "daily_quota": 1000}}'
-      PROVIDERS_CONFIG: '{"test_provider": {"is_active": true, "is_operational": true}}'
 
     steps:
     - name: Checkout code
@@ -25,9 +22,9 @@ jobs:
         python-version: '3.12'
 
     - name: Install dependencies
-      working-directory: server-a
-      run: pip install -r requirements.txt
+      working-directory: server-b
+      run: pip install .[test]
 
     - name: Run tests
-      working-directory: server-a
+      working-directory: server-b
       run: pytest
