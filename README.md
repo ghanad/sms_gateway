@@ -21,6 +21,21 @@ This repository contains the components for an internal SMS API Gateway.
    ```
    This starts Server A, Server B, the Frontend, Redis, RabbitMQ and PostgreSQL.
 
+## Using Your Server IP
+
+Services listen on `0.0.0.0` by default, so you can access them from other machines by using the server's IP address.
+
+1. Ensure `.env` contains `SERVER_A_HOST=0.0.0.0` and `SERVER_B_HOST=0.0.0.0` (these are the defaults).
+2. Start the stack with `make up`.
+3. From your client or browser, replace `localhost` with the server's IP:
+
+   ```text
+   http://<your-server-ip>:8000  # Server A API
+   http://<your-server-ip>:9000  # Server B API
+   ```
+
+   If you run the frontend separately, set `VITE_API_BASE_URL` to `http://<your-server-ip>:9000` before building or running it.
+
 ## Makefile Targets
 
 * `build`: Builds Docker images.
