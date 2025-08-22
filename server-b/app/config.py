@@ -14,6 +14,8 @@ class Settings(BaseSettings):
 
     database_url: str = Field(..., env="DATABASE_URL")
 
+    allowed_origins: list[str] = Field(default_factory=list, env="ALLOWED_ORIGINS")
+
     max_send_attempts: int = Field(10, env="MAX_SEND_ATTEMPTS")
     default_ttl_seconds: int = Field(3600, env="DEFAULT_TTL_SECONDS")
     min_ttl_seconds: int = Field(10, env="MIN_TTL_SECONDS")
