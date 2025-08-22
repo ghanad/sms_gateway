@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import './theme.css';
+
+body {
+  @apply bg-white text-gray-800;
+  font-family: sans-serif;
+}
