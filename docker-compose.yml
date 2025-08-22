@@ -39,17 +39,35 @@ services:
       timeout: 5s
       retries: 5
 
-  # Placeholders for future services
-  server-b:
-    image: alpine/git
-    command: ["sh", "-c", "echo 'Server B placeholder' && sleep infinity"]
-    volumes:
-      - ./server-b:/app
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: smsgw
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD", "echo", "Server B is a placeholder"]
-      interval: 30s
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+
+  server-b:
+    build:
+      context: ./server-b
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    ports:
+      - "${SERVER_B_PORT:-9000}:${SERVER_B_PORT:-9000}"
+    depends_on:
+      - rabbitmq
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${SERVER_B_PORT:-9000}/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     image: alpine/git
