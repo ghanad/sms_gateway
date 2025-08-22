@@ -39,25 +39,18 @@ services:
       timeout: 5s
       retries: 5
 
-  # Placeholders for future services
   server-b:
     image: alpine/git
     command: ["sh", "-c", "echo 'Server B placeholder' && sleep infinity"]
     volumes:
       - ./server-b:/app
-    healthcheck:
-      test: ["CMD", "echo", "Server B is a placeholder"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
 
   frontend:
-    image: alpine/git
-    command: ["sh", "-c", "echo 'Frontend placeholder' && sleep infinity"]
-    volumes:
-      - ./frontend:/app
-    healthcheck:
-      test: ["CMD", "echo", "Frontend is a placeholder"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+    build:
+      context: ./frontend
+    env_file:
+      - ./.env
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - server-b
