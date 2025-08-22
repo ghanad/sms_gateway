@@ -337,6 +337,41 @@ Use **Vitest** + **@testing-library/react**:
 42. Root `.env.example` (add frontend envs)
 43. Root `README.md` (updated overview)
 
+--- 
+
+# Must-Have Files (in addition to previous list)
+
+Add/extend modules for Auth & RBAC and new APIs:
+server-b/app/auth.py (JWT create/verify, role deps, bcrypt utilities)
+server-b/app/routers/auth.py (login, builtin admin info)
+server-b/app/routers/messages.py (list/detail)
+server-b/app/routers/users.py (users CRUD + associations)
+server-b/app/routers/admin.py (providers summary, dashboard summary)
+Update server-b/app/main.py to include CORS and mount routers with tags.
+Update server-b/app/schemas.py with DTOs for:
+Auth: LoginRequest, LoginResponse
+Messages: MessageOut, MessageListResponse, filters
+Users: UserIn, UserOut, AssociationIn
+Providers: ProviderInfo, ProvidersResponse
+Summary: SummaryResponse
+Update server-b/app/repositories.py with queries supporting filters/pagination.
+Update migrations to ensure indexes for message queries.
+Tests (Vitest not applicable; use pytest):
+tests/test_auth.py (builtin + db user, guards)
+tests/test_messages_api.py (filters, paging)
+tests/test_users_admin_api.py
+tests/test_admin_providers_summary.py
+Keep earlier tests (policy engine, consumer, webhooks, status)
+Dependencies (additions)
+PyJWT, passlib[bcrypt]
+
+## Env & Contracts
+Same env and endpoint contracts as the CLI prompt above.
+
+
+## Acceptance
+Same as above; endpoints compile and tests cover all additions.
+
 ---
 
 ## Notes
