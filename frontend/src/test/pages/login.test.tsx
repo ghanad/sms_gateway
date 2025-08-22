@@ -16,15 +16,15 @@ describe('Login Page', () => {
         </BrowserRouter>
       </AuthProvider>
     );
-    fireEvent.change(screen.getByPlaceholderText(/username/i), {
+    fireEvent.change(screen.getByPlaceholderText(/email/i), {
       target: { value: 'admin' },
     });
     fireEvent.change(screen.getByPlaceholderText(/password/i), {
       target: { value: 'pass' },
     });
-    fireEvent.click(screen.getByText(/login/i));
+    fireEvent.click(screen.getByText(/log in/i));
     // since login sets localStorage, check token
-    await screen.findByText(/login/i);
+    await screen.findByText(/log in/i);
     expect(localStorage.getItem('token')).toBe('mock-token');
   });
 });
