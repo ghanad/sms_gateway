@@ -13,7 +13,7 @@ from app.config import Settings, ClientConfig
 from app.auth import ClientContext
 
 # Apply the exception handler to the test app instance
-app.add_exception_handler(HTTPException)(http_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
 
 # Mock settings for testing
 @pytest.fixture
