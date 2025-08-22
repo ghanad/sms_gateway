@@ -11,6 +11,9 @@ import httpx
 # from the repository root by adding the "server-b" directory to ``sys.path``.
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+# Provide a default in-memory database URL so ``app`` can import settings
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+
 from app.main import app
 from app import models
 from app.db import get_session
@@ -25,7 +28,6 @@ def event_loop():
 
 @pytest.fixture(scope="session")
 async def async_sessionmaker_fixture():
-    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
     engine = create_async_engine(os.environ["DATABASE_URL"])
     async with engine.begin() as conn:
         await conn.run_sync(models.Base.metadata.create_all)
