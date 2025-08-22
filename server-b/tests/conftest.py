@@ -1,8 +1,16 @@
 import asyncio
 import os
+import sys
+from pathlib import Path
+
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 import httpx
+
+# Ensure that the application package is importable when tests are executed
+# from the repository root by adding the "server-b" directory to ``sys.path``.
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 from app.main import app
 from app import models
 from app.db import get_session
