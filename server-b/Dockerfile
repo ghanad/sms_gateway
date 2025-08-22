@@ -2,8 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir fastapi uvicorn[standard] aio-pika sqlalchemy[asyncio] asyncpg alembic httpx prometheus-client python-json-logger
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY migrations ./migrations
