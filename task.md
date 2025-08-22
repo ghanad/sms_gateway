@@ -1,10 +1,17 @@
 
+# LLM Implementation Prompt — **Server B** (Code-Only Output)
 
-# LLM Implementation Prompt — **Server A** of SMS API Gateway
+**Context:** Implement the **Server B (Processing Backend)** of the SMS API Gateway according to the design doc (v1.5). Server B consumes messages from RabbitMQ (produced by Server A), applies sending policies (Exclusive / Prioritized Failover / Smart Selection), integrates with provider adapters, persists state in PostgreSQL, exposes status & webhook endpoints, emits Prometheus metrics, and logs in JSON.
 
-**Context:** Implement the **Server A (API Gateway)** component in Python/FastAPI based on the architecture spec. The system is an internal SMS gateway with strict network isolation. **Only Server A** is in scope now; create minimal placeholders for **Server B** and **Frontend** so the repo is a monorepo. Provide Docker/Compose to run Server A with Redis & RabbitMQ locally.
+**Important constraints:**
 
-## Output Format (important)
+* You **cannot** use a CLI or write files to disk.
+* Output **all source files** as code blocks using the exact format below.
+* **If you add or modify any functionality, you must also include tests for it.**
+
+---
+
+## Output Format (strict)
 
 Produce code as a sequence of files, each in its own fenced code block:
 
@@ -13,376 +20,273 @@ Produce code as a sequence of files, each in its own fenced code block:
 <file content>
 ```
 
-Only include files you create. No explanations between files.
+* Output **only files** (no prose between blocks).
+* Include **every** file needed to run & test Server B inside a monorepo.
+* Do **not** omit supporting files (Dockerfile, pyproject, alembic, compose updates, etc.).
+* Keep filenames and paths exactly as specified below.
 
 ---
 
-## Global Constraints
-
-* **Language/Framework:** Python 3.12, FastAPI, Uvicorn.
-* **Dependencies (keep minimal):**
-  `fastapi`, `uvicorn[standard]`, `pydantic`, `redis>=5,<6` (async), `aio-pika`, `prometheus-client`, `python-json-logger`, `python-dotenv` (load .env in dev).
-  *Avoid extra libs beyond these.*
-* **Architecture truths:**
-
-  * Server A is in the **internal network** and has **no direct internet** dependency in production.
-  * Communication with Server B is **one-way** via RabbitMQ (A → B).
-* **Behavioral priorities:** Fast-Fail, Idempotency, Daily Quota, Provider Gate rules, JSON logs with `tracking_id`, Prometheus metrics.
-* **Do not** implement Server B logic or any outbound HTTP to providers; only enqueue to RabbitMQ.
-* **Testing:** Use `pytest` with realistic unit tests for core logic.
-* **Style:** Type hints everywhere, PEP8, modular structure.
-
----
-
-## Repository Layout (monorepo)
-
-Create this tree; **fully implement only `server-a`**. Others are placeholders:
+## Monorepo Layout (implement **server-b** fully; others placeholders if needed)
 
 ```
 repo-root/
-  server-a/
+  server-a/                    # already exists (leave untouched)
+  server-b/
     app/
       __init__.py
       main.py
       config.py
       logging.py
       metrics.py
-      auth.py
+      db.py
+      models.py
       schemas.py
-      provider_gate.py
-      quota.py
-      idempotency.py
-      rabbit.py
-      heartbeat.py
+      repositories.py
+      rabbit_consumer.py
+      policy_engine.py
+      provider_registry.py
+      providers/
+        __init__.py
+        base.py
+        provider_a.py
+        local_sms.py
+      webhooks.py
+      status_api.py
+      heartbeat_consumer.py
       utils.py
+    migrations/
+      env.py
+      versions/               # include initial migration file(s)
     tests/
-      test_provider_gate.py
-      test_idempotency.py
-      test_quota.py
-      test_send_endpoint.py
+      test_policy_engine.py
+      test_consumer_flow.py
+      test_webhooks.py
+      test_status_api.py
+      conftest.py
     Dockerfile
     pyproject.toml
     README.md
-  server-b/
-    README.md
   frontend/
-    README.md
-  docker-compose.yml
-  .env.example
-  Makefile
-  README.md
+    README.md                  # placeholder
+  docker-compose.yml           # include server-b + postgres services
+  .env.example                 # extend with SERVER_B_* and DB vars
+  Makefile                     # targets for server-b (optional but preferred)
+  README.md                    # repo overview (update if necessary)
+```
+
+> If a file already exists in your mental model, **output it anyway** (overwrite). This is a code-only environment; the consumer will create files from your blocks.
+
+---
+
+## Dependencies (keep minimal)
+
+* Web/API: `fastapi`, `uvicorn[standard]`
+* Async AMQP: `aio-pika`
+* DB/ORM/Migrations: `SQLAlchemy[asyncio]`, `asyncpg`, `alembic`
+* HTTP client for providers: `httpx`
+* Observability: `prometheus-client`, `python-json-logger`
+* Dev/test: `pytest`, `pytest-asyncio`
+
+No unnecessary extras.
+
+---
+
+## Environment Variables (in `.env.example` at repo root)
+
+```
+# Server B
+SERVICE_NAME=server-b
+SERVER_B_HOST=0.0.0.0
+SERVER_B_PORT=9000
+
+# Rabbit
+RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+RABBITMQ_QUEUE_OUTBOUND=sms.outbound
+RABBITMQ_QUEUE_HEARTBEAT=a.heartbeat
+RABBITMQ_PREFETCH=32
+
+# Database
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/smsgw
+
+# Policy & TTL
+MAX_SEND_ATTEMPTS=10
+DEFAULT_TTL_SECONDS=3600
+MIN_TTL_SECONDS=10
+MAX_TTL_SECONDS=86400
+
+# Provider selection
+SMART_SELECTION_STRATEGY=priority    # priority | round_robin
+PROVIDER_DEFAULT_PRIORITY=100
+
+# Optional baseline fingerprints (for heartbeat comparison)
+EXPECTED_CLIENTS_FINGERPRINT=
+EXPECTED_PROVIDERS_FINGERPRINT=
 ```
 
 ---
 
-## Task 0 — Bootstrap Monorepo
+## Functional Requirements
 
-* Create the structure above.
-* Top-level `README.md` with quickstart and repository overview.
-* Top-level `Makefile` targets: `build`, `up`, `down`, `logs`, `lint`, `fmt`, `test`.
-* `docker-compose.yml` to run:
+### Messaging & Processing
 
-  * `server-a` (built from `server-a/Dockerfile`)
-  * `redis`
-  * `rabbitmq` (management UI enabled on 15672)
-* `.env.example` at repo root with all variables Server A needs.
+* Consume JSON envelopes from `RABBITMQ_QUEUE_OUTBOUND` with fields:
 
----
+  * `tracking_id`, `client_key`, `to`, `text`, `ttl_seconds`,
+  * `providers_original?`, `providers_effective?`,
+  * `config_fingerprint: {clients, providers}`, `created_at` (ISO8601).
+* **Policy Engine:**
 
-## Task 1 — Configuration & Fingerprints
+  * If `providers_effective` provided:
 
-* Implement `app/config.py` to load **environment variables** (from `.env` in dev):
+    * **Exclusive**: exactly one entry; if disabled → **fail** (do not override).
+    * **Prioritized**: ordered list; skip disabled; if empty → **fail**.
+  * Else **Smart Selection**: choose among enabled providers by **priority** (or round\_robin if configured).
+  * Enforce TTL: if expired → mark **FAILED (expired)**.
+  * Respect `MAX_SEND_ATTEMPTS` using Rabbit’s `x-death` (or header) for attempt count.
+* Provider adapters:
 
-  * `SERVICE_NAME=server-a`
-  * `SERVER_A_HOST=0.0.0.0`
-  * `SERVER_A_PORT=8000`
-  * `REDIS_URL=redis://redis:6379/0`
-  * `RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/`
-  * `PROVIDER_GATE_ENABLED=true`
-  * `IDEMPOTENCY_TTL_SECONDS=86400` (24h)
-  * `QUOTA_PREFIX=quota`
-  * `HEARTBEAT_INTERVAL_SECONDS=60`
-  * `CLIENT_CONFIG` — JSON string mapping api\_key → { name, is\_active, daily\_quota }
-  * `PROVIDERS_CONFIG` — JSON string mapping provider name → { is\_active, is\_operational, aliases?, note? }
-* Parse JSON into Pydantic models. **Fail fast on startup** if invalid.
-* Compute **fingerprints**: SHA-256 of the **raw JSON strings** for `CLIENT_CONFIG` and `PROVIDERS_CONFIG`; expose in config.
-* Build a **case-insensitive alias map** for providers; reject alias collisions.
+  * `providers/base.py` defines async interface + result model.
+  * `provider_a.py`: sample HTTP adapter (read API base/key from env; mockable).
+  * `local_sms.py`: simulated success adapter (offline).
+* On temporary failures: schedule retry with **exponential backoff** via DLX/TTL or requeue strategy; on permanent failure, switch provider (prioritized) or mark FAILED.
+* Persist states/events in PostgreSQL (`messages`, `message_events`).
 
----
+### HTTP API
 
-## Task 2 — Logging (JSON) & Metrics
+* `GET /api/status/{tracking_id}`: return status + recent events.
+* `POST /webhooks/delivery-report/{provider}`: accept DLR, map to internal events, update `DELIVERED`/`FAILED`.
+* `GET /metrics`: Prometheus metrics.
+* `GET /healthz`, `GET /readyz`: liveness/readiness (DB reachable).
 
-* `app/logging.py`: configure `python-json-logger` for structured logs; always include fields:
+### Observability
 
-  * `service`, `level`, `timestamp`, `message`, and if available `tracking_id`, `client_api_key`.
-* `app/metrics.py`: expose Prometheus metrics at `GET /metrics`.
-  Define counters/gauges (names exact):
+* **JSON logs** (python-json-logger) with `service`, `timestamp`, `level`, and when available: `tracking_id`, `provider`, `client_key`.
+* **Prometheus metrics:**
 
-  * `sms_providers_config_total`
-  * `sms_provider_active{provider}` (0/1 gauge)
-  * `sms_provider_operational{provider}` (0/1 gauge)
-  * `sms_request_rejected_unknown_provider_total{client}`
-  * `sms_request_rejected_provider_disabled_total{client,provider}`
-  * `sms_request_rejected_no_provider_available_total{client}`
-  * `sms_config_fingerprint_mismatch_total{kind}` (placeholder increment; B will actually compare)
-  * Plus: request counters and latency summary for `/api/v1/sms/send`.
+  * `sms_messages_total{status}`
+  * `sms_processing_latency_seconds`
+  * `sms_provider_attempts_total{provider,outcome}`
+  * `sms_provider_switch_total{from,to}`
+  * `sms_retry_scheduled_total`
+  * `sms_config_fingerprint_mismatch_total{kind}`
+  * `server_a_heartbeat_last_ts` (gauge)
+  * `db_write_errors_total`, `db_latency_seconds`
 
----
+### Heartbeat
 
-## Task 3 — Authentication (API Key)
+* Consumer for `RABBITMQ_QUEUE_HEARTBEAT` to read heartbeats from A, compare fingerprints if `EXPECTED_*` envs provided, update metric & log warning on mismatch.
 
-* `app/auth.py`: FastAPI dependency that:
+### Database (async SQLAlchemy + Alembic)
 
-  * Reads `API-Key` header.
-  * Looks up in loaded `CLIENT_CONFIG`.
-  * If missing/invalid or `is_active=false` → `401 Unauthorized`.
-  * On success, attach `client` context (name, key, daily\_quota) to request state.
+* `messages`:
 
----
+  * `id` (PK), `tracking_id` (UUID unique), `client_key`, `to`, `text`, `ttl_seconds`,
+  * `provider_final` (nullable), `status` (ENUM: QUEUED, PROCESSING, SENT, FAILED, DELIVERED),
+  * `created_at`, `updated_at`
+* `message_events`:
 
-## Task 4 — Request Schema & Validation
+  * `id` (PK), `tracking_id` (FK), `event_type` (PROCESSING, SENT, FAILED, DELIVERED, PROVIDER\_SWITCHED, RETRY\_SCHEDULED),
+  * `provider`, `details` (JSON), `created_at`
+* Include Alembic env + initial migration(s).
 
-* `app/schemas.py` define:
+### Dockerization & Compose
 
-  * `SendSmsRequest` with fields:
-    `to: str`, `text: str`, `providers: list[str] | None = None`, `ttl_seconds: int | None = None`
-
-    * Validate `to` with E.164 (accept +98… etc.).
-    * `text` max length (e.g., 1000).
-    * `ttl_seconds`: min 10, max 86400; default 3600 if not provided.
-  * `SendSmsResponse`: `{ success: bool, message: str, tracking_id: str }`
-  * `ErrorResponse` schema: `{ error_code, message, details?, tracking_id?, timestamp }`
+* `server-b/Dockerfile` (python:3.12-slim).
+* Extend top-level `docker-compose.yml`: add **postgres** & **server-b** services (ports 5432 & 9000).
+* Ensure graceful startup/shutdown.
 
 ---
 
-## Task 5 — Idempotency (Redis)
+## Tests (mandatory)
 
-* `app/idempotency.py`:
+For **every new or changed module/function**, include tests. Provide at least:
 
-  * Read `Idempotency-Key` header (optional but recommended).
-  * If present:
+1. **Policy Engine** (`test_policy_engine.py`)
 
-    * On first successful processing: **cache the full HTTP response** body + status for **TTL=IDEMPOTENCY\_TTL\_SECONDS**.
-    * On subsequent identical key: **return cached response** (success or error) without reprocessing.
-  * Must be safe for concurrent requests (use Redis SETNX or Lua script semantics).
-  * Key space: `idem:{api_key}:{idempotency_key}`.
+   * Exclusive disabled → immediate fail.
+   * Prioritized: skip disabled, preserve order; if empty → fail.
+   * Smart selection (priority & round\_robin).
+   * TTL expiry → fail (expired).
 
----
+2. **Consumer Flow** (`test_consumer_flow.py`)
 
-## Task 6 — Provider Gate (Fast-Fail) **(critical)**
+   * Mock provider adapters & AMQP channel; on temp fail schedule retry; on success → SENT; on permanent failure with prioritized → switch then finalize.
 
-* `app/provider_gate.py`:
+3. **Webhooks** (`test_webhooks.py`)
 
-  * Map input `providers` (case-insensitive) to canonical names via aliases; **unknown** → HTTP 422 with `error_code="UNKNOWN_PROVIDER"` and allowed names list.
-  * **Smart Selection** (no providers provided):
+   * Normalize provider payload → update `DELIVERED`.
 
-    * If **no provider** with `is_active && is_operational` exists in config → HTTP 503 with `error_code="NO_PROVIDER_AVAILABLE"`. Otherwise pass through (effective list stays empty; B will choose later).
-  * **Exclusive** (exactly one):
+4. **Status API** (`test_status_api.py`)
 
-    * If that provider not `(is_active && is_operational)` → HTTP 409 with `error_code="PROVIDER_DISABLED"`.
-  * **Prioritized Failover** (more than one):
+   * Return status & ordered events.
 
-    * Filter out providers not `(is_active && is_operational)` preserving order.
-    * If resulting list is empty → HTTP 409 with `error_code="ALL_PROVIDERS_DISABLED"`.
-* **Placement in pipeline:** Run **before quota** to avoid consuming quota for doomed requests.
-* Emit metrics and a structured log event `provider_gate.blocked` for rejections.
+5. **DB & Migrations** (in tests or fixture)
 
----
+   * Apply migrations to a test DB (sqlite in-memory for unit tests, or mark async postgres tests and mock DB layer).
 
-## Task 7 — Quota (Daily, Redis)
-
-* `app/quota.py`:
-
-  * After Provider Gate, enforce per-client **daily quota** using Redis atomic counters.
-  * Key: `{QUOTA_PREFIX}:{client_key}:{YYYY-MM-DD}`
-  * If exceeding `daily_quota` → HTTP 429 Too Many Requests.
-  * Counters expire automatically after 24h.
-  * Ensure **requests rejected by Provider Gate do not consume quota**.
-
----
-
-## Task 8 — RabbitMQ Publishing (A → B)
-
-* `app/rabbit.py`:
-
-  * Use `aio-pika` to publish **durable** messages with `delivery_mode=2`.
-  * Declare an exchange/queue pair for outbound messages (simple default direct or use default exchange and named queue).
-  * **Envelope** (JSON) must include:
-
-    * `tracking_id` (uuid4)
-    * `client_key`
-    * `to`, `text`
-    * `ttl_seconds`
-    * `providers_original` (if user provided)
-    * `providers_effective` (filtered; empty list means Smart Selection)
-    * `config_fingerprint`: `{ clients: <sha256>, providers: <sha256> }`
-    * `created_at` (UTC ISO8601)
-* Do **not** access internet or provider APIs here.
-
----
-
-## Task 9 — Heartbeat (A → B)
-
-* `app/heartbeat.py`:
-
-  * Background task sending a small message to a dedicated heartbeat queue every `HEARTBEAT_INTERVAL_SECONDS` with:
-
-    * `service="server-a"`, `ts`, `config_fingerprint.clients`, `config_fingerprint.providers`.
-  * If publish fails, log error (JSON) and continue retrying with backoff internally.
-
----
-
-## Task 10 — HTTP API (Server A)
-
-* `app/main.py`:
-
-  * Router: `POST /api/v1/sms/send`
-
-    1. **Idempotency pre-check** (short-circuit on cached response).
-    2. **Authentication** (API-Key).
-    3. **Payload validation** (Pydantic model).
-    4. **Provider Gate** (fast-fail).
-    5. **Quota** check (increment on success path).
-    6. Generate `tracking_id` (uuid4).
-    7. Publish envelope to RabbitMQ.
-    8. **Store response** for idempotency if key present.
-    9. Return **202 Accepted** with body:
-
-       ```json
-       { "success": true, "message": "Request accepted for processing.", "tracking_id": "<uuid>" }
-       ```
-  * Health endpoints:
-
-    * `GET /healthz` (liveness: returns 200 if app thread alive).
-    * `GET /readyz` (readiness: verify Redis and RabbitMQ connections).
-  * `GET /metrics` (Prometheus via `metrics.py`).
-* **Error model:** Always return structured error JSON:
-
-  * `error_code` ∈ { `UNKNOWN_PROVIDER`, `PROVIDER_DISABLED`, `ALL_PROVIDERS_DISABLED`, `NO_PROVIDER_AVAILABLE`, `UNAUTHORIZED`, `TOO_MANY_REQUESTS`, `INVALID_PAYLOAD`, `INTERNAL_ERROR` }
-  * Include `tracking_id` **if it was generated**.
-
----
-
-## Task 11 — Dockerization & Compose
-
-* `server-a/Dockerfile`:
-
-  * Base `python:3.12-slim`, install build deps minimally, add non-root user.
-  * Copy `pyproject.toml` (or `requirements.txt`) then `pip install`.
-  * Copy app, set working dir, `uvicorn app.main:app --host 0.0.0.0 --port ${SERVER_A_PORT}` as CMD.
-* Top-level `docker-compose.yml`:
-
-  * `server-a` service uses `.env` from repo root.
-  * `redis` service.
-  * `rabbitmq` service with management UI (ports 5672, 15672).
-* Ensure **graceful shutdown** (SIGTERM) and fast startup checks.
-
----
-
-## Task 12 — Testing (pytest)
-
-Create tests to cover:
-
-1. **Provider Gate:**
-
-   * Unknown provider → 422 `UNKNOWN_PROVIDER`.
-   * Smart Selection with no active providers → 503 `NO_PROVIDER_AVAILABLE`.
-   * Exclusive disabled → 409 `PROVIDER_DISABLED`.
-   * Prioritized mix → correct filtered order; empty after filter → 409 `ALL_PROVIDERS_DISABLED`.
-2. **Idempotency:**
-
-   * First call stores response; second call with same `Idempotency-Key` returns exact cached response (both success and error paths).
-3. **Quota:**
-
-   * Enforce daily quota; ensure Provider Gate rejections do **not** increment quota.
-4. **Send Endpoint end-to-end (without real B):**
-
-   * Publishes a message to RabbitMQ (use a test queue or mock `aio-pika`).
-   * Returns 202 with `tracking_id`.
-5. **Health/Readiness**:
-
-   * Ready only when Redis & Rabbit are reachable.
-
----
-
-## Task 13 — Documentation
-
-* `server-a/README.md`: setup, environment variables, run commands, error codes, metrics list, and API examples.
-* Top-level `README.md`: monorepo overview, how to add Server B & Frontend later.
-
----
-
-## Task 14 — Makefile & Dev Ergonomics
-
-* `Makefile` targets:
-
-  * `build`: `docker compose build`
-  * `up`: `docker compose up -d`
-  * `down`: `docker compose down -v`
-  * `logs`: `docker compose logs -f server-a`
-  * `test`: run pytest inside container or via `docker compose run --rm server-a pytest`
-  * `fmt`: run `python -m pip install ruff black && ruff check --fix . && black .` (optional if you add these in dev only)
-  * `lint`: run `ruff check .`
-* (Optional) dev-only dependencies for lint/format can be added to `pyproject.toml` under extras.
+> Tests must be runnable without external internet; **mock outbound HTTP** (provider\_a).
 
 ---
 
 ## Acceptance Criteria
 
-* Running `docker compose up --build` starts `server-a`, `redis`, `rabbitmq`.
-* `POST /api/v1/sms/send`:
-
-  * Applies Idempotency → Auth → Validation → **Provider Gate** → **Quota** → Publish → 202.
-  * Returns structured JSON with `tracking_id`.
-* Provider Gate enforces:
-
-  * Smart Selection requires at least one **active & operational** provider in config.
-  * Exclusive rejects disabled providers.
-  * Prioritized removes disabled providers, preserves order, rejects if empty.
-* Redis used for both **idempotency** and **daily quota**.
-* RabbitMQ publishes **durable** messages with the specified **envelope**.
-* Logs are **JSON** and include `tracking_id` when available.
-* `/metrics` exposes Prometheus metrics including the ones listed.
-* Tests cover key paths and pass locally.
-* No extra dependencies beyond those listed.
+* Code compiles and is importable.
+* All endpoints present and wired.
+* Consumer consumes messages, applies policies, persists states, and handles retries/backoff.
+* Metrics exposed and counters updated on key events.
+* Logs are structured JSON with context fields.
+* Tests cover core logic and any added functionality.
 
 ---
 
-## Seed `.env.example` (place at repo root)
+## Deliverables (print ALL these files)
 
-```
-SERVICE_NAME=server-a
-SERVER_A_HOST=0.0.0.0
-SERVER_A_PORT=8000
-REDIS_URL=redis://redis:6379/0
-RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-PROVIDER_GATE_ENABLED=true
-IDEMPOTENCY_TTL_SECONDS=86400
-QUOTA_PREFIX=quota
-HEARTBEAT_INTERVAL_SECONDS=60
-CLIENT_CONFIG={"api_key_for_service_A":{"name":"Financial Service","is_active":true,"daily_quota":1000}}
-PROVIDERS_CONFIG={
-  "Provider-A":{"is_active":true,"is_operational":true,"aliases":["provider-a","PROVIDER_A"],"note":"active"},
-  "Provider-B":{"is_active":false,"is_operational":false,"note":"disabled"},
-  "Local-SMS":{"is_active":true,"is_operational":true,"note":"offline module"}
-}
-```
+You **must** output all of the following (filled with working code):
+
+1. `server-b/pyproject.toml`
+2. `server-b/Dockerfile`
+3. `server-b/app/__init__.py`
+4. `server-b/app/main.py`
+5. `server-b/app/config.py`
+6. `server-b/app/logging.py`
+7. `server-b/app/metrics.py`
+8. `server-b/app/db.py`
+9. `server-b/app/models.py`
+10. `server-b/app/schemas.py`
+11. `server-b/app/repositories.py`
+12. `server-b/app/policy_engine.py`
+13. `server-b/app/provider_registry.py`
+14. `server-b/app/providers/__init__.py`
+15. `server-b/app/providers/base.py`
+16. `server-b/app/providers/provider_a.py`
+17. `server-b/app/providers/local_sms.py`
+18. `server-b/app/rabbit_consumer.py`
+19. `server-b/app/webhooks.py`
+20. `server-b/app/status_api.py`
+21. `server-b/app/heartbeat_consumer.py`
+22. `server-b/app/utils.py`
+23. `server-b/migrations/env.py`
+24. `server-b/migrations/versions/<timestamp>_initial.py` (use any timestamp prefix)
+25. `server-b/tests/conftest.py`
+26. `server-b/tests/test_policy_engine.py`
+27. `server-b/tests/test_consumer_flow.py`
+28. `server-b/tests/test_webhooks.py`
+29. `server-b/tests/test_status_api.py`
+30. `server-b/README.md`
+31. Root `docker-compose.yml` (with postgres & server-b services)
+32. Root `.env.example` (extended with SERVER\_B\_\* and DB vars)
+33. Root `README.md` (updated overview)
+34. Root `Makefile` (optional but preferred: logs-b, test-b targets)
+
+If you introduce any extra helper modules or configs, **also** provide corresponding tests.
 
 ---
 
-## Notes for the LLM
+## Notes
 
-* **Do not** implement Server B or Frontend; just provide simple `README.md` placeholders there.
-* Remember: **requests rejected by Provider Gate must not consume quota**.
-* For **idempotency**, cache **both** success and error responses.
-* Use **UUID v4** for `tracking_id`.
-* Ensure all error responses follow the unified error schema and use appropriate HTTP status codes:
-
-  * 422 `UNKNOWN_PROVIDER`
-  * 409 `PROVIDER_DISABLED` / `ALL_PROVIDERS_DISABLED`
-  * 503 `NO_PROVIDER_AVAILABLE`
-  * 401 `UNAUTHORIZED`
-  * 429 `TOO_MANY_REQUESTS`
-  * 400 `INVALID_PAYLOAD`
-  * 500 `INTERNAL_ERROR`
+* Use **UUID v4** for `tracking_id` (do not regenerate if provided).
+* Backoff can be a simple exponential formula; document it in code comments.
+* Keep adapters minimal but testable; no real internet in tests—**mock httpx**.
+* Keep interfaces clean so real providers can be added later without changing core logic.
 
