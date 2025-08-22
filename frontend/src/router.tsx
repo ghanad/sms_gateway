@@ -6,18 +6,52 @@ import MessagesList from './pages/MessagesList';
 import MessageDetail from './pages/MessageDetail';
 import UsersAdmin from './pages/UsersAdmin';
 import NotFound from './pages/NotFound';
-import { useAuth } from './hooks/useAuth';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function Router() {
-  const { isAuthenticated } = useAuth();
   return (
     <Routes>
-      <Route path="/" element={isAuthenticated ? <Dashboard /> : <Login />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/messages" element={<MessagesList />} />
-      <Route path="/messages/:id" element={<MessageDetail />} />
-      <Route path="/users" element={<UsersAdmin />} />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/messages"
+        element={
+          <ProtectedRoute>
+            <MessagesList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/messages/:id"
+        element={
+          <ProtectedRoute>
+            <MessageDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute>
+            <UsersAdmin />
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
