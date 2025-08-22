@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 import httpx
 
@@ -28,7 +29,7 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def async_sessionmaker_fixture():
     engine = create_async_engine(os.environ["DATABASE_URL"])
     async with engine.begin() as conn:
@@ -36,7 +37,7 @@ async def async_sessionmaker_fixture():
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture(scope="session", autouse=True)
 async def override_get_session(async_sessionmaker_fixture):
     async def _get_session():
         async with async_sessionmaker_fixture() as session:
@@ -44,13 +45,14 @@ async def override_get_session(async_sessionmaker_fixture):
     app.dependency_overrides[get_session] = _get_session
 
 
-@pytest.fixture()
+@pytest_asyncio.fixture()
 async def session(async_sessionmaker_fixture):
     async with async_sessionmaker_fixture() as s:
         yield s
 
 
-@pytest.fixture()
+@pytest_asyncio.fixture()
 async def client():
-    async with httpx.AsyncClient(app=app, base_url="http://test") as ac:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
