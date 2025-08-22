@@ -8,8 +8,10 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 import httpx
 
 # Ensure that the application package is importable when tests are executed
-# from the repository root by adding the "server-b" directory to ``sys.path``.
-sys.path.append(str(Path(__file__).resolve().parent.parent))
+# from the repository root by adding the ``server-b`` directory to ``sys.path``.
+SERVER_DIR = Path(__file__).resolve().parent.parent
+if str(SERVER_DIR) not in sys.path:
+    sys.path.insert(0, str(SERVER_DIR))
 
 # Provide a default in-memory database URL so ``app`` can import settings
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
