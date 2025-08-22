@@ -1,16 +1,19 @@
 import pytest
 import json
-from unittest.mock import AsyncMock, patch, MagicMock
-from fastapi import FastAPI, status, HTTPException
+from unittest.mock import AsyncMock, patch, MagicMock, ANY
+from fastapi import FastAPI, status, HTTPException, Request
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from uuid import UUID, uuid4
 from datetime import datetime
 
-from app.main import app
+from app.main import app, http_exception_handler
 from app.schemas import SendSmsRequest, SendSmsResponse, ErrorResponse
 from app.config import Settings, ClientConfig
 from app.auth import ClientContext
+
+# Apply the exception handler to the test app instance
+app.add_exception_handler(HTTPException)(http_exception_handler)
 
 # Mock settings for testing
 @pytest.fixture

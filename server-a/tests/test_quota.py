@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
-from fastapi import FastAPI, Request, status, HTTPException
+from fastapi import FastAPI, Request, status, HTTPException, Depends
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from datetime import datetime, timedelta
