@@ -6,7 +6,7 @@ This repository contains the components for an internal SMS API Gateway.
 
 * **server-a**: API Gateway (FastAPI) that enqueues messages to RabbitMQ.
 * **server-b**: Backend worker that consumes messages, applies provider policies, persists state in PostgreSQL and exposes status and webhook APIs.
-* **frontend**: Placeholder for future interface.
+* **frontend**: React + Vite web interface.
 
 ## Quickstart
 
@@ -19,7 +19,7 @@ This repository contains the components for an internal SMS API Gateway.
    ```bash
    make up
    ```
-   This starts Server A, Server B, Redis, RabbitMQ and PostgreSQL.
+   This starts Server A, Server B, the Frontend, Redis, RabbitMQ and PostgreSQL.
 
 ## Makefile Targets
 
