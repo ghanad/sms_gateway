@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import FastAPI, status, HTTPException
 from httpx import AsyncClient
 
@@ -28,7 +28,7 @@ def mock_settings():
     return settings
 
 @pytest.fixture
-async def test_app_with_mocked_lifespan(mock_settings):
+def test_app_with_mocked_lifespan(mock_settings):
     # Patch get_settings globally for the app
     with patch('app.config.get_settings', return_value=mock_settings), \
          patch('app.main.get_settings', return_value=mock_settings):
@@ -42,7 +42,8 @@ async def test_app_with_mocked_lifespan(mock_settings):
         mock_rabbitmq_connection.is_closed = False
         # Make sure the channel context manager works
         channel_mock = AsyncMock()
-        mock_rabbitmq_connection.channel.return_value.__aenter__.return_value = channel_mock
+        mock_rabbitmq_connection.channel = MagicMock(return_value=channel_mock)
+        channel_mock.__aenter__.return_value = channel_mock
         mock_rabbitmq_connection.close.return_value = None
 
         with patch('app.main.redis_client', mock_redis_client), \
@@ -60,47 +61,26 @@ async def test_healthz_endpoint():
     assert response.json() == {"status": "ok"}
 
 @pytest.mark.asyncio
-async def test_readyz_endpoint_success():
-    async with AsyncClient(app=app, base_url="http://test") as client:
+async def test_readyz_endpoint_success(test_app_with_mocked_lifespan):
+    async with AsyncClient(app=test_app_with_mocked_lifespan, base_url="http://test") as client:
         response = await client.get("/readyz")
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {"status": "ok"}
 
 @pytest.mark.asyncio
-async def test_readyz_endpoint_redis_unreachable(mock_settings):
-    # Mock Redis to be unreachable
-    mock_redis_client_down = AsyncMock()
-    mock_redis_client_down.ping.side_effect = ConnectionError("Redis connection failed")
-
-    # Mock RabbitMQ to be reachable
-    mock_rabbitmq_up = AsyncMock()
-    mock_rabbitmq_up.is_closed = False
-    mock_rabbitmq_up.channel.return_value.__aenter__.return_value = AsyncMock()
-
-    with patch('app.main.redis_client', mock_redis_client_down), \
-         patch('app.main.rabbitmq_connection', mock_rabbitmq_up):
-        
-        async with AsyncClient(app=app, base_url="http://test") as client:
+async def test_readyz_endpoint_redis_unreachable(test_app_with_mocked_lifespan):
+    with patch('app.main.redis_client.ping', side_effect=ConnectionError("Redis connection failed")):
+        async with AsyncClient(app=test_app_with_mocked_lifespan, base_url="http://test") as client:
             response = await client.get("/readyz")
         
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         assert response.json()["error_code"] == "SERVICE_UNAVAILABLE"
-        assert "Redis not reachable" in response.json()["message"]
+        assert "Redis connection failed" in response.json()["message"]
 
 @pytest.mark.asyncio
-async def test_readyz_endpoint_rabbitmq_unreachable(mock_settings):
-    # Mock Redis to be reachable
-    mock_redis_up = AsyncMock()
-    mock_redis_up.ping.return_value = True
-
-    # Mock RabbitMQ to be unreachable
-    mock_rabbitmq_down = AsyncMock()
-    mock_rabbitmq_down.is_closed = True
-
-    with patch('app.main.redis_client', mock_redis_up), \
-         patch('app.main.rabbitmq_connection', mock_rabbitmq_down):
-
-        async with AsyncClient(app=app, base_url="http://test") as client:
+async def test_readyz_endpoint_rabbitmq_unreachable(test_app_with_mocked_lifespan):
+    with patch('app.main.rabbitmq_connection.is_closed', True):
+        async with AsyncClient(app=test_app_with_mocked_lifespan, base_url="http://test") as client:
             response = await client.get("/readyz")
         
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE

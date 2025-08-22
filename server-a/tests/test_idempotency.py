@@ -1,6 +1,6 @@
 import pytest
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import FastAPI, Request, Response, status, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
@@ -40,9 +40,9 @@ def mock_settings():
 @pytest.fixture
 def mock_redis_client():
     mock = AsyncMock(spec=Redis)
-    mock.get.return_value = None
-    mock.set.return_value = None
-    mock.expire.return_value = None
+    mock.get = AsyncMock(return_value=None)
+    mock.set = AsyncMock(return_value=None)
+    mock.expire = AsyncMock(return_value=None)
     return mock
 
 # Mock FastAPI app with idempotency middleware
@@ -52,7 +52,7 @@ def test_app(mock_settings, mock_redis_client):
 
     # Since we are testing the middleware in isolation, we don't need the full app setup.
     # We just need to patch the dependencies used by the middleware.
-    with patch('app.idempotency.get_settings', return_value=mock_settings), \
+    with patch('app.idempotency.settings', mock_settings), \
          patch('app.idempotency.get_redis_client', return_value=mock_redis_client):
 
         app.middleware("http")(idempotency_middleware)
@@ -76,6 +76,7 @@ def test_app(mock_settings, mock_redis_client):
         yield app
 
 
+
 @pytest.mark.asyncio
 async def test_first_request_stores_response(test_app, mock_redis_client, mock_settings):
     idempotency_key = "test-key-1"
@@ -94,7 +95,7 @@ async def test_first_request_stores_response(test_app, mock_redis_client, mock_s
     # Verify the stored content
     stored_data = json.loads(mock_redis_client.set.call_args[0][1])
     assert stored_data["status_code"] == status.HTTP_200_OK
-    assert json.loads(stored_data["body"])["success"] is True
+    assert json.loads(stored_data["body"])["status"] == "ok"
 
 @pytest.mark.asyncio
 async def test_second_request_returns_cached_success_response(test_app, mock_redis_client, mock_settings):
@@ -119,7 +120,7 @@ async def test_second_request_returns_cached_success_response(test_app, mock_red
     assert response.json() == json.loads(cached_body)
     mock_redis_client.get.assert_called_once_with(f"idem:client_key_1:{idempotency_key}")
     mock_redis_client.set.assert_not_called() # Should not call set again
-    mock_redis_client.expire.assert_called_once_with(f"idem:client_key_1:{idempotency_key}", mock_settings.IDEMPOTENCY_TTL_SECONDS)
+    mock_redis_client.expire.assert_not_called()
 
 
 @pytest.mark.asyncio

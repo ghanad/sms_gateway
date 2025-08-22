@@ -119,14 +119,16 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     logger.error(
         f"HTTP Exception: {exc.status_code} - {error_response.error_code}",
         extra={
-            "tracking_id": tracking_id, 
-            "client_api_key": getattr(request.state, 'client', None).api_key if hasattr(request.state, 'client') and request.state.client else None, 
+            "tracking_id": tracking_id,
+            "client_api_key": getattr(request.state, 'client', None).api_key if hasattr(request.state, 'client') and request.state.client else None,
             "error_details": exc.detail
         }
     )
+    # Manually serialize the content to handle datetime objects
+    content = json.loads(json.dumps(error_response.model_dump(exclude_none=True), default=custom_json_serializer))
     return JSONResponse(
         status_code=exc.status_code,
-        content=error_response.model_dump(exclude_none=True)
+        content=content
     )
 
 @app.post("/api/v1/sms/send", response_model=SendSmsResponse, status_code=status.HTTP_202_ACCEPTED)
