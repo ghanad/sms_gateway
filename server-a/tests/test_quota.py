@@ -44,28 +44,38 @@ def mock_redis_client():
 def test_app_quota(mock_settings, mock_redis_client):
     app = FastAPI()
 
-    with patch('app.quota.get_settings', return_value=mock_settings), \
+    # Patch settings and redis client at the module level for consistency
+    with patch('app.quota.settings', mock_settings), \
          patch('app.quota.get_redis_client', return_value=mock_redis_client):
 
-        @app.get("/test-quota")
-        async def test_endpoint_with_quota(request: Request, client: ClientContext = Depends(lambda: ClientContext(api_key="client_key_1", name="Test Client 1", is_active=True, daily_quota=10))):
-            request.state.client = client # Manually set client context
-            await enforce_daily_quota(request)
+        # Dummy auth dependency to simulate getting a client context
+        async def get_test_client_context(request: Request) -> ClientContext:
+            client = ClientContext(api_key="client_key_1", name="Test Client 1", is_active=True, daily_quota=10)
+            request.state.client = client # Attach to request state
+            return client
+
+        async def get_unlimited_client_context(request: Request) -> ClientContext:
+            client = ClientContext(api_key="client_key_unlimited", name="Unlimited Client", is_active=True, daily_quota=0)
+            request.state.client = client
+            return client
+
+        @app.get("/test-quota", dependencies=[Depends(get_test_client_context), Depends(enforce_daily_quota)])
+        async def test_endpoint_with_quota():
             return {"message": "Quota check passed"}
 
-        @app.get("/test-quota-unlimited")
-        async def test_endpoint_unlimited_quota(request: Request, client: ClientContext = Depends(lambda: ClientContext(api_key="client_key_unlimited", name="Unlimited Client", is_active=True, daily_quota=0))):
-            request.state.client = client
-            await enforce_daily_quota(request)
+        @app.get("/test-quota-unlimited", dependencies=[Depends(get_unlimited_client_context), Depends(enforce_daily_quota)])
+        async def test_endpoint_unlimited_quota():
             return {"message": "Quota check passed for unlimited client"}
 
+        # The exception handler is crucial for testing rejection cases
         @app.exception_handler(HTTPException)
         async def http_exception_handler(request: Request, exc: HTTPException):
             return JSONResponse(
                 status_code=exc.status_code,
-                content={"error_code": exc.detail["error_code"], "message": exc.detail["message"]}
+                content=exc.detail
             )
         yield app
+
 
 @pytest.mark.asyncio
 async def test_quota_enforced_below_limit(test_app_quota, mock_redis_client, mock_settings):
@@ -137,42 +147,56 @@ async def test_unlimited_quota_client(test_app_quota, mock_redis_client, mock_se
 
 # Test integration with Provider Gate (ensure rejections don't consume quota)
 @pytest.fixture
-def test_app_with_provider_gate_and_quota(mock_settings, mock_redis_client):
+def test_app_rejection(mock_settings, mock_redis_client):
     app = FastAPI()
 
-    with patch('app.quota.get_settings', return_value=mock_settings), \
-         patch('app.quota.get_redis_client', return_value=mock_redis_client):
-
-        # Mock provider_gate to raise an HTTPException
-        mock_provider_gate = AsyncMock()
-        mock_provider_gate.process_providers.side_effect = HTTPException(
+    # Mock the provider gate dependency to raise a specific exception
+    async def mock_provider_gate_rejection():
+        raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"error_code": "UNKNOWN_PROVIDER", "message": "Unknown provider"}
         )
-        with patch('app.main.provider_gate', mock_provider_gate):
-            @app.post("/send-sms-with-gate")
-            async def send_sms_endpoint(request: Request, client: ClientContext = Depends(lambda: ClientContext(api_key="client_key_1", name="Test Client 1", is_active=True, daily_quota=10))):
-                request.state.client = client
-                # Simulate the pipeline order: Provider Gate -> Quota
-                effective_providers = mock_provider_gate.process_providers(request, ["UnknownProvider"])
-                await enforce_daily_quota(request) # This should not be reached if Provider Gate rejects
-                return {"message": "Should not reach here"}
 
-            @app.exception_handler(HTTPException)
-            async def http_exception_handler(request: Request, exc: HTTPException):
-                return JSONResponse(
-                    status_code=exc.status_code,
-                    content={"error_code": exc.detail["error_code"], "message": exc.detail["message"]}
-                )
-            yield app
+    # Mock client context dependency
+    async def get_test_client_context(request: Request) -> ClientContext:
+        client = ClientContext(api_key="client_key_1", name="Test Client 1", is_active=True, daily_quota=10)
+        request.state.client = client
+        return client
+
+    with patch('app.quota.settings', mock_settings), \
+         patch('app.quota.get_redis_client', return_value=mock_redis_client):
+
+        # The endpoint depends on the client, the (failing) provider gate, and then the quota
+        @app.post("/send-sms", dependencies=[
+            Depends(get_test_client_context),
+            Depends(mock_provider_gate_rejection),
+            Depends(enforce_daily_quota) # This dependency should not be executed
+        ])
+        async def protected_endpoint():
+            return {"message": "Should not be reached"}
+
+        # Add the exception handler to the app
+        @app.exception_handler(HTTPException)
+        async def http_exception_handler(request: Request, exc: HTTPException):
+            return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+        yield app
+
 
 @pytest.mark.asyncio
-async def test_provider_gate_rejection_does_not_consume_quota(test_app_with_provider_gate_and_quota, mock_redis_client):
-    mock_redis_client.incr.reset_mock() # Ensure incr is not called
+async def test_provider_gate_rejection_does_not_consume_quota(test_app_rejection, mock_redis_client):
+    """
+    Verify that if the ProviderGate rejects a request, the quota is not incremented.
+    FastAPI's dependency system should stop processing dependencies after one raises an HTTPException.
+    """
+    mock_redis_client.incr.reset_mock()
 
-    async with AsyncClient(app=test_app_with_provider_gate_and_quota, base_url="http://test") as client:
-        response = await client.post("/send-sms-with-gate", json={}) # Payload doesn't matter for this test
+    async with AsyncClient(app=test_app_rejection, base_url="http://test") as client:
+        response = await client.post("/send-sms", json={"body": "test"})
 
+    # Assert that the response is the one from the raised HTTPException
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     assert response.json()["error_code"] == "UNKNOWN_PROVIDER"
-    mock_redis_client.incr.assert_not_called() # Quota should not be incremented
+
+    # Assert that the quota was not touched
+    mock_redis_client.incr.assert_not_called()

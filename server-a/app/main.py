@@ -1,8 +1,10 @@
 import logging
 import asyncio
+import json
+from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import List, Optional
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 import aio_pika
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Response
@@ -86,6 +88,13 @@ async def lifespan(app: FastAPI):
         await redis_client.close()
         logger.info("Redis client closed.")
 
+def custom_json_serializer(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, UUID):
+        return str(obj)
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
 app = FastAPI(
     title="SMS API Gateway - Server A",
     description="Internal API Gateway for SMS sending.",
@@ -93,6 +102,7 @@ app = FastAPI(
     lifespan=lifespan,
     default_response_class=JSONResponse
 )
+app.json_encoder = custom_json_serializer
 
 # Add idempotency middleware
 app.middleware("http")(idempotency_middleware)

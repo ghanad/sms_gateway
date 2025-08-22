@@ -22,15 +22,12 @@ async def idempotency_middleware(request: Request, call_next):
     if not idempotency_key:
         return await call_next(request)
 
-    if not hasattr(request.state, 'client') or not request.state.client.api_key:
-        # This should ideally be caught by auth dependency first, but as a safeguard
-        logger.error("Idempotency middleware called without client context. This indicates an auth bypass or misconfiguration.")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error_code": "INTERNAL_ERROR", "message": "Missing client context for idempotency check."}
-        )
+    client_api_key: Optional[str] = request.headers.get("API-Key")
 
-    client_api_key = request.state.client.api_key
+    # If API-Key is missing, the request will be rejected by auth later.
+    # The idempotency check is skipped for such invalid requests.
+    if not client_api_key:
+        return await call_next(request)
     redis_key = f"idem:{client_api_key}:{idempotency_key}"
     redis_client = await get_redis_client()
 

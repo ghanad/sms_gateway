@@ -131,21 +131,16 @@ def test_provider_alias_mapping(provider_gate_instance: ProviderGate, mock_reque
     assert result_alias == ["ProviderD"]
 
 def test_provider_alias_collision_detection():
-    """Tests that the Pydantic model raises a ValueError on alias collision."""
-    with pytest.raises(ValueError, match="Alias collision detected"):
-        Settings(
-            PROVIDERS_CONFIG='''{
-                "ProviderX": {"aliases": ["common-alias"]},
-                "ProviderY": {"aliases": ["common-alias"]}
-            }'''
+    """Test that duplicate aliases (case-insensitive) for different providers raise an error."""
+    with pytest.raises(ValueError, match="Alias collision: 'alias-a' already maps to 'provider-a', cannot map to 'provider-b'"):
+        settings = Settings(
+            CLIENT_CONFIG='{}',
+            PROVIDERS_CONFIG='''
+            {
+                "provider-a": {"is_active": true, "is_operational": true, "aliases": ["alias-a"]},
+                "provider-b": {"is_active": true, "is_operational": true, "aliases": ["ALIAS-A"]}
+            }
+            '''
         )
-
-def test_provider_alias_is_case_insensitive():
-    """Tests that aliases are treated as case-insensitive during collision checks."""
-    with pytest.raises(ValueError, match="Alias collision detected"):
-        Settings(
-            PROVIDERS_CONFIG='''{
-                "ProviderX": {"aliases": ["MyAlias"]},
-                "ProviderY": {"aliases": ["myalias"]}
-            }'''
-        )
+        # Trigger the validation by accessing the computed field
+        _ = settings.provider_alias_map
