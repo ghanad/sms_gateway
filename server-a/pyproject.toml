@@ -5,6 +5,10 @@ description = "SMS API Gateway - Server A"
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
 
+packages = [
+    { include = "app" },
+]
+
 [tool.poetry.dependencies]
 python = "^3.12"
 fastapi = "^0.111.0"
