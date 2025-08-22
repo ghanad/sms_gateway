@@ -32,3 +32,32 @@ class EventOut(BaseModel):
 
 class MessageWithEventsOut(MessageStatusOut):
     events: List[EventOut]
+
+
+class UserBase(BaseModel):
+    name: str
+    username: str
+    daily_quota: int
+    api_key: str
+    note: Optional[str] = None
+    active: bool = True
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class UserOut(UserBase):
+    id: int
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    daily_quota: Optional[int] = None
+    api_key: Optional[str] = None
+    note: Optional[str] = None
+    active: Optional[bool] = None
+
+
+class PasswordChange(BaseModel):
+    password: str

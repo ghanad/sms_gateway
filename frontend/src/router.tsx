@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import MessagesList from './pages/MessagesList';
 import MessageDetail from './pages/MessageDetail';
 import UsersAdmin from './pages/UsersAdmin';
+import ChangePassword from './pages/ChangePassword';
 import NotFound from './pages/NotFound';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -49,6 +50,14 @@ export default function Router() {
         element={
           <ProtectedRoute>
             <UsersAdmin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/change-password"
+        element={
+          <ProtectedRoute>
+            <ChangePassword />
           </ProtectedRoute>
         }
       />

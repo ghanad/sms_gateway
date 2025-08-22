@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Enum, DateTime, ForeignKey, JSON
+from sqlalchemy import String, Integer, Enum, DateTime, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import declarative_base, relationship, Mapped, mapped_column
 
 Base = declarative_base()
@@ -54,3 +54,16 @@ class MessageEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     message: Mapped[Message] = relationship("Message", back_populates="events")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    username: Mapped[str] = mapped_column(String, unique=True)
+    daily_quota: Mapped[int] = mapped_column(Integer)
+    api_key: Mapped[str] = mapped_column(String)
+    password: Mapped[str] = mapped_column(String)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)

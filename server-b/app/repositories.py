@@ -36,3 +36,52 @@ class MessageRepository:
             )
         )
         return result.scalars().first()
+
+
+class UserRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def list_users(self) -> list[models.User]:
+        result = await self.session.execute(select(models.User))
+        return result.scalars().all()
+
+    async def create_user(self, **data) -> models.User:
+        user = models.User(**data)
+        self.session.add(user)
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user
+
+    async def get(self, user_id: int) -> models.User | None:
+        return await self.session.get(models.User, user_id)
+
+    async def get_by_username(self, username: str) -> models.User | None:
+        result = await self.session.execute(select(models.User).where(models.User.username == username))
+        return result.scalars().first()
+
+    async def update_user(self, user_id: int, data: dict) -> models.User | None:
+        user = await self.get(user_id)
+        if not user:
+            return None
+        for key, value in data.items():
+            setattr(user, key, value)
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user
+
+    async def delete_user(self, user_id: int) -> bool:
+        user = await self.get(user_id)
+        if not user:
+            return False
+        await self.session.delete(user)
+        await self.session.commit()
+        return True
+
+    async def change_password(self, username: str, password: str) -> models.User | None:
+        user = await self.get_by_username(username)
+        if not user:
+            return None
+        user.password = password
+        await self.session.commit()
+        return user
