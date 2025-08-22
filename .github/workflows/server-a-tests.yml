@@ -1,0 +1,33 @@
+name: Server A Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      CLIENT_CONFIG: '{"test_client": {"name": "Test Client", "is_active": true, "daily_quota": 1000}}'
+      PROVIDERS_CONFIG: '{"test_provider": {"is_active": true, "is_operational": true}}'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      working-directory: server-a
+      run: pip install -r requirements.txt
+
+    - name: Run tests
+      working-directory: server-a
+      run: pytest
