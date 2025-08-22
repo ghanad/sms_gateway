@@ -9,6 +9,9 @@ import {
   User,
   UserCreate,
 } from '../api/users';
+import { Modal } from '../components/ui/Modal';
+import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
 
 export default function UsersAdmin() {
   const [users, setUsers] = React.useState<User[]>([]);
@@ -22,6 +25,7 @@ export default function UsersAdmin() {
   });
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [editForm, setEditForm] = React.useState<Partial<User>>({});
+  const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
     listUsers().then(setUsers);
@@ -32,6 +36,7 @@ export default function UsersAdmin() {
     const u = await createUser(form);
     setUsers([...users, u]);
     setForm({ name: '', username: '', daily_quota: 0, api_key: '', password: '', note: '' });
+    setOpen(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -59,41 +64,49 @@ export default function UsersAdmin() {
 
   return (
     <div className="p-4 space-y-4">
-      <form onSubmit={handleCreate} className="space-x-2">
-        <input
-          placeholder="Name"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
-        <input
-          placeholder="Username"
-          value={form.username}
-          onChange={(e) => setForm({ ...form, username: e.target.value })}
-        />
-        <input
-          placeholder="Daily Quota"
-          type="number"
-          value={form.daily_quota}
-          onChange={(e) => setForm({ ...form, daily_quota: Number(e.target.value) })}
-        />
-        <input
-          placeholder="API Key"
-          value={form.api_key}
-          onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-        />
-        <input
-          placeholder="Password"
-          type="password"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
-        <input
-          placeholder="Note"
-          value={form.note || ''}
-          onChange={(e) => setForm({ ...form, note: e.target.value })}
-        />
-        <button type="submit">Add User</button>
-      </form>
+      <Button onClick={() => setOpen(true)}>Add User</Button>
+      <Modal open={open} onClose={() => setOpen(false)} title="Add User">
+        <form onSubmit={handleCreate} className="space-y-2">
+          <Input
+            placeholder="Name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <Input
+            placeholder="Username"
+            value={form.username}
+            onChange={(e) => setForm({ ...form, username: e.target.value })}
+          />
+          <Input
+            placeholder="Daily Quota"
+            type="number"
+            value={form.daily_quota}
+            onChange={(e) => setForm({ ...form, daily_quota: Number(e.target.value) })}
+          />
+          <Input
+            placeholder="API Key"
+            value={form.api_key}
+            onChange={(e) => setForm({ ...form, api_key: e.target.value })}
+          />
+          <Input
+            placeholder="Password"
+            type="password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+          />
+          <Input
+            placeholder="Note"
+            value={form.note || ''}
+            onChange={(e) => setForm({ ...form, note: e.target.value })}
+          />
+          <div className="flex justify-end space-x-2 pt-2">
+            <Button type="submit">Save</Button>
+            <Button type="button" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       <table className="w-full border">
         <thead>
@@ -113,15 +126,15 @@ export default function UsersAdmin() {
                   <td>{u.id}</td>
                   <td>{u.username}</td>
                   <td>
-                    <input
+                    <Input
                       value={editForm.name || ''}
                       onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                     />
                   </td>
                   <td>{u.active ? 'Yes' : 'No'}</td>
                   <td>
-                    <button onClick={submitEdit}>Save</button>
-                    <button onClick={() => setEditingId(null)}>Cancel</button>
+                    <Button onClick={submitEdit}>Save</Button>
+                    <Button onClick={() => setEditingId(null)}>Cancel</Button>
                   </td>
                 </>
               ) : (
@@ -131,11 +144,11 @@ export default function UsersAdmin() {
                   <td>{u.name}</td>
                   <td>{u.active ? 'Yes' : 'No'}</td>
                   <td className="space-x-2">
-                    <button onClick={() => startEdit(u)}>Edit</button>
-                    <button onClick={() => handleToggle(u)}>
+                    <Button onClick={() => startEdit(u)}>Edit</Button>
+                    <Button onClick={() => handleToggle(u)}>
                       {u.active ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button onClick={() => handleDelete(u.id)}>Delete</button>
+                    </Button>
+                    <Button onClick={() => handleDelete(u.id)}>Delete</Button>
                   </td>
                 </>
               )}
