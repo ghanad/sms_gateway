@@ -5,6 +5,11 @@ from pydantic import Field, BaseModel, ValidationError, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
+
+def normalize_provider_key(name: str) -> str:
+    """Normalize provider names by stripping non-alphanumeric characters and lowering case."""
+    return ''.join(ch for ch in name.lower() if ch.isalnum())
+
 class ClientConfig(BaseModel):
     name: str
     is_active: bool
@@ -28,8 +33,9 @@ class Settings(BaseSettings):
     IDEMPOTENCY_TTL_SECONDS: int = 86400
     QUOTA_PREFIX: str = "quota"
     HEARTBEAT_INTERVAL_SECONDS: int = 60
-    CLIENT_CONFIG: str
-    PROVIDERS_CONFIG: str
+    # Default to empty JSON objects so tests and local usage don't require env vars
+    CLIENT_CONFIG: str = "{}"
+    PROVIDERS_CONFIG: str = "{}"
 
     @computed_field
     @property
@@ -64,18 +70,21 @@ class Settings(BaseSettings):
     def provider_alias_map(self) -> Dict[str, str]:
         alias_map: Dict[str, str] = {}
         for provider_name, provider_config in self.providers.items():
-            # Add canonical name itself to the map
-            canonical_name_lower = provider_name.lower()
-            if canonical_name_lower in alias_map and alias_map[canonical_name_lower] != provider_name:
-                raise ValueError(f"Alias collision: '{canonical_name_lower}' already maps to '{alias_map[canonical_name_lower]}', cannot map to '{provider_name}'")
-            alias_map[canonical_name_lower] = provider_name
+            canonical_key = normalize_provider_key(provider_name)
+            if canonical_key in alias_map and alias_map[canonical_key] != provider_name:
+                raise ValueError(
+                    f"Alias collision: '{canonical_key}' already maps to '{alias_map[canonical_key]}', cannot map to '{provider_name}'"
+                )
+            alias_map[canonical_key] = provider_name
 
             if provider_config.aliases:
                 for alias in provider_config.aliases:
-                    alias_lower = alias.lower()
-                    if alias_lower in alias_map and alias_map[alias_lower] != provider_name:
-                        raise ValueError(f"Alias collision: '{alias_lower}' already maps to '{alias_map[alias_lower]}', cannot map to '{provider_name}'")
-                    alias_map[alias_lower] = provider_name
+                    alias_key = normalize_provider_key(alias)
+                    if alias_key in alias_map and alias_map[alias_key] != provider_name:
+                        raise ValueError(
+                            f"Alias collision: '{alias.lower()}' already maps to '{alias_map[alias_key]}', cannot map to '{provider_name}'"
+                        )
+                    alias_map[alias_key] = provider_name
         return alias_map
 
 @lru_cache
