@@ -22,7 +22,6 @@ pytest = "^8.2.2"
 ruff = "^0.4.8"
 black = "^24.4.2"
 httpx = "^0.27.0"
-asyncio-throttle = "^0.2.0" # For testing rate limits if needed
 
 [build-system]
 requires = ["poetry-core"]
