@@ -53,15 +53,15 @@ async def test_app_with_mocked_lifespan(mock_settings):
             yield app
 
 @pytest.mark.asyncio
-async def test_healthz_endpoint(test_app_with_mocked_lifespan):
-    async with AsyncClient(app=test_app_with_mocked_lifespan, base_url="http://test") as client:
+async def test_healthz_endpoint():
+    async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get("/healthz")
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {"status": "ok"}
 
 @pytest.mark.asyncio
-async def test_readyz_endpoint_success(test_app_with_mocked_lifespan):
-    async with AsyncClient(app=test_app_with_mocked_lifespan, base_url="http://test") as client:
+async def test_readyz_endpoint_success():
+    async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get("/readyz")
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {"status": "ok"}

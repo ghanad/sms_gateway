@@ -44,7 +44,7 @@ def mock_redis_client():
 def test_app_quota(mock_settings, mock_redis_client):
     app = FastAPI()
 
-    with patch('app.config.get_settings', return_value=mock_settings), \
+    with patch('app.quota.get_settings', return_value=mock_settings), \
          patch('app.quota.get_redis_client', return_value=mock_redis_client):
 
         @app.get("/test-quota")
@@ -140,7 +140,7 @@ async def test_unlimited_quota_client(test_app_quota, mock_redis_client, mock_se
 def test_app_with_provider_gate_and_quota(mock_settings, mock_redis_client):
     app = FastAPI()
 
-    with patch('app.config.get_settings', return_value=mock_settings), \
+    with patch('app.quota.get_settings', return_value=mock_settings), \
          patch('app.quota.get_redis_client', return_value=mock_redis_client):
 
         # Mock provider_gate to raise an HTTPException

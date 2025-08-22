@@ -1,6 +1,6 @@
 import pytest
 from fastapi import HTTPException, Request, status
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, PropertyMock
 
 from app.provider_gate import ProviderGate
 from app.config import Settings, ProviderConfig
@@ -23,14 +23,10 @@ def provider_gate_instance(mock_providers_config: dict) -> ProviderGate:
     This fixture allows tests to modify the provider config on the fly.
     """
     with patch('app.config.get_settings') as mock_get_settings:
-        # Mock the settings object that the ProviderGate will use
         mock_settings = MagicMock(spec=Settings)
         mock_settings.PROVIDER_GATE_ENABLED = True
-        
-        # Use the mutable fixture for providers_config
         mock_settings.providers = mock_providers_config
-        
-        # Create the alias map from the mocked providers_config
+
         alias_map = {}
         for name, config in mock_providers_config.items():
             alias_map[name.lower()] = name
@@ -38,12 +34,10 @@ def provider_gate_instance(mock_providers_config: dict) -> ProviderGate:
                 for alias in config.aliases:
                     alias_map[alias.lower()] = name
         
-        # Configure the mock to return the computed alias map
-        type(mock_settings).provider_alias_map = patch.object(Settings, 'provider_alias_map', new_callable=property(lambda: alias_map)).__get__(mock_settings, Settings)
+        type(mock_settings).provider_alias_map = PropertyMock(return_value=alias_map)
 
         mock_get_settings.return_value = mock_settings
         
-        # The ProviderGate will now use the fully mocked settings
         gate = ProviderGate()
         return gate
 

@@ -50,49 +50,31 @@ def mock_redis_client():
 def test_app(mock_settings, mock_redis_client):
     app = FastAPI()
 
-    # Patch get_settings and get_redis_client for the app
-    with patch('app.config.get_settings', return_value=mock_settings), \
-         patch('app.idempotency.get_redis_client', return_value=mock_redis_client), \
-         patch('app.main.get_redis_client', return_value=mock_redis_client): # Also patch in main for send_sms endpoint
+    # Since we are testing the middleware in isolation, we don't need the full app setup.
+    # We just need to patch the dependencies used by the middleware.
+    with patch('app.idempotency.get_settings', return_value=mock_settings), \
+         patch('app.idempotency.get_redis_client', return_value=mock_redis_client):
 
-        @app.middleware("http")
-        async def add_idempotency_middleware(request: Request, call_next):
-            # Manually set client state for testing middleware in isolation
-            request.state.client = AsyncMock()
-            request.state.client.api_key = "client_key_1"
-            return await idempotency_middleware(request, call_next)
+        app.middleware("http")(idempotency_middleware)
 
         @app.post("/test-endpoint")
         async def test_endpoint(request: Request):
-            # Simulate some processing
-            await asyncio.sleep(0.01)
-            return JSONResponse(
-                content={"success": True, "message": "Processed successfully", "tracking_id": str(uuid4())},
-                status_code=status.HTTP_200_OK
-            )
+            return JSONResponse(content={"status": "ok"})
 
         @app.post("/test-error-endpoint")
         async def test_error_endpoint(request: Request):
-            await asyncio.sleep(0.01)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"error_code": "INVALID_PAYLOAD", "message": "Invalid input"}
-            )
+            raise HTTPException(status_code=400, detail={"error_code": "TEST_ERROR", "message": "This is a test error"})
 
-        # Custom exception handler for HTTPException to return ErrorResponse schema
-        @app.exception_handler(HTTPException)
-        async def http_exception_handler(request: Request, exc: HTTPException):
-            error_response = ErrorResponse(
-                error_code=exc.detail.get("error_code", "INTERNAL_ERROR"),
-                message=exc.detail.get("message", "An unexpected error occurred."),
-                details=exc.detail.get("details")
-            )
-            return JSONResponse(
-                status_code=exc.status_code,
-                content=error_response.model_dump(exclude_none=True)
-            )
+        # Add a minimal client object to the request state for the middleware to use.
+        @app.middleware("http")
+        async def add_client_to_state(request: Request, call_next):
+            request.state.client = MagicMock()
+            request.state.client.api_key = "client_key_1"
+            response = await call_next(request)
+            return response
 
         yield app
+
 
 @pytest.mark.asyncio
 async def test_first_request_stores_response(test_app, mock_redis_client, mock_settings):
