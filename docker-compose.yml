@@ -40,10 +40,28 @@ services:
       retries: 5
 
   server-b:
-    image: alpine/git
-    command: ["sh", "-c", "echo 'Server B placeholder' && sleep infinity"]
-    volumes:
-      - ./server-b:/app
+    build:
+      context: ./server-b
+    env_file:
+      - ./.env
+    ports:
+      - "${SERVER_B_PORT:-9000}:${SERVER_B_PORT:-9000}"
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: smsgw
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     build:

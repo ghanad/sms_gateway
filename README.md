@@ -5,7 +5,7 @@ This repository contains the components for an internal SMS API Gateway.
 ## Components
 
 - **server-a**: FastAPI gateway handling incoming SMS requests and queuing.
-- **server-b**: Placeholder backend worker.
+- **server-b**: Backend service providing authentication, user management, and message APIs.
 - **frontend**: React + Vite web interface for administration.
 
 ## Quickstart
@@ -17,7 +17,7 @@ This repository contains the components for an internal SMS API Gateway.
 make up
 ```
 
-The compose stack includes Server A, Redis, RabbitMQ, Server B placeholder, and the frontend.
+The compose stack includes Server A, Redis, RabbitMQ, Postgres, Server B, and the frontend.
 
 ## Makefile Targets
 
@@ -25,6 +25,8 @@ The compose stack includes Server A, Redis, RabbitMQ, Server B placeholder, and 
 - `up`: Starts the Docker Compose services in detached mode.
 - `down`: Stops and removes the services and volumes.
 - `logs`: Follows Server A logs.
+- `logs-b`: Follows Server B logs.
 - `lint`: Runs linting for Server A.
 - `fmt`: Formats Server A code.
 - `test`: Runs Server A tests.
+- `test-b`: Runs Server B tests.
