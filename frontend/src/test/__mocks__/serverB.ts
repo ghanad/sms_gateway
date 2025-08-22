@@ -30,10 +30,23 @@ export function mockServerB() {
     if (url.endsWith('/api/users')) {
       return Promise.resolve(
         new Response(
-          JSON.stringify([{ id: '1', username: 'admin', role: 'admin' }]),
+          JSON.stringify([
+            {
+              id: 1,
+              name: 'Admin',
+              username: 'admin',
+              daily_quota: 100,
+              api_key: 'key',
+              note: '',
+              active: true,
+            },
+          ]),
           { status: 200 }
         )
       );
+    }
+    if (url.includes('/api/users/') && url.endsWith('/password')) {
+      return Promise.resolve(new Response('{}', { status: 200 }));
     }
     return Promise.reject(new Error('Unknown endpoint: ' + url));
   };

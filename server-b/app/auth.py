@@ -1,5 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
+from .db import get_session
+from .repositories import UserRepository
 
 router = APIRouter(prefix="/api/auth")
 
@@ -10,11 +13,10 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-async def login(payload: LoginRequest):
-    if payload.username == "admin" and payload.password == "changeme":
-        # In a real application this would return a JWT or session token.
-        # Returning a static token keeps the example simple while allowing
-        # the frontend to store something and treat the user as authenticated.
+async def login(payload: LoginRequest, session: AsyncSession = Depends(get_session)):
+    repo = UserRepository(session)
+    user = await repo.get_by_username(payload.username)
+    if user and user.password == payload.password and user.active:
         return {"access_token": "fake-token", "token_type": "bearer"}
 
     raise HTTPException(status_code=401, detail="Invalid credentials")
