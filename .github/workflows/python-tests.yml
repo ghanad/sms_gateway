@@ -11,6 +11,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      CLIENT_CONFIG: '{"test_client": {"name": "Test Client", "is_active": true, "daily_quota": 1000}}'
+      PROVIDERS_CONFIG: '{"test_provider": {"is_active": true, "is_operational": true}}'
 
     steps:
     - name: Checkout code
