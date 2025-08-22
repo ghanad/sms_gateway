@@ -6,6 +6,7 @@ from .config import settings
 from .logging import configure_logging
 from .status_api import router as status_router
 from .webhooks import router as webhook_router
+from .auth import router as auth_router
 
 app = FastAPI(title=settings.service_name)
 
@@ -30,3 +31,4 @@ async def metrics_endpoint() -> PlainTextResponse:
 
 app.include_router(status_router)
 app.include_router(webhook_router)
+app.include_router(auth_router)
