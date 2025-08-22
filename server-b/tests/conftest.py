@@ -1,8 +1,21 @@
 import asyncio
 import os
+import sys
+from pathlib import Path
+
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 import httpx
+
+# Ensure that the application package is importable when tests are executed
+# from the repository root by adding the ``server-b`` directory to ``sys.path``.
+SERVER_DIR = Path(__file__).resolve().parent.parent
+if str(SERVER_DIR) not in sys.path:
+    sys.path.insert(0, str(SERVER_DIR))
+
+# Provide a default in-memory database URL so ``app`` can import settings
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+
 from app.main import app
 from app import models
 from app.db import get_session
@@ -17,7 +30,6 @@ def event_loop():
 
 @pytest.fixture(scope="session")
 async def async_sessionmaker_fixture():
-    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
     engine = create_async_engine(os.environ["DATABASE_URL"])
     async with engine.begin() as conn:
         await conn.run_sync(models.Base.metadata.create_all)
