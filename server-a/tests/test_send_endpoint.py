@@ -41,7 +41,7 @@ def mock_settings():
 def mock_dependencies(mock_settings):
     with patch('app.config.get_settings', return_value=mock_settings), \
          patch('app.auth.get_settings', return_value=mock_settings), \
-         patch('app.idempotency.get_settings', return_value=mock_settings), \
+         patch('app.idempotency.settings', mock_settings), \
          patch('app.quota.get_settings', return_value=mock_settings), \
          patch('app.rabbit.get_settings', return_value=mock_settings), \
          patch('app.heartbeat.get_settings', return_value=mock_settings):
@@ -122,7 +122,7 @@ async def test_send_sms_success(mock_dependencies):
     assert isinstance(kwargs["tracking_id"], UUID)
 
 @pytest.mark.asyncio
-async def test_send_sms_idempotency_key_stores_response(mock_dependencies):
+async def test_send_sms_idempotency_key_stores_response(mock_dependencies, mock_settings):
     idempotency_key = "unique-idempotency-key"
     sms_request_payload = {
         "to": "+1234567890",
