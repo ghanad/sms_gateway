@@ -5,7 +5,7 @@ import pytest
 async def test_login_success(client):
     resp = await client.post("/api/auth/login", json={"username": "admin", "password": "changeme"})
     assert resp.status_code == 200
-    assert resp.json() == {"message": "Login successful"}
+    assert resp.json() == {"access_token": "fake-token", "token_type": "bearer"}
 
 
 @pytest.mark.asyncio
