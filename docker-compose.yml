@@ -1,32 +1,30 @@
-version: '3.8'
-
 services:
-  server-a:
-    build:
-      context: ./server-a
-      dockerfile: Dockerfile
-    env_file:
-      - ./.env
-    ports:
-      - "${SERVER_A_PORT:-8000}:${SERVER_A_PORT:-8000}"
-    depends_on:
-      - redis
-      - rabbitmq
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SERVER_A_PORT:-8000}/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # server-a:
+  #   build:
+  #     context: ./server-a
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - ./.env
+  #   ports:
+  #     - "${SERVER_A_PORT:-8000}:${SERVER_A_PORT:-8000}"
+  #   depends_on:
+  #     - redis
+  #     - rabbitmq
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:${SERVER_A_PORT:-8000}/healthz"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
-  redis:
-    image: "redis:7-alpine"
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+  # redis:
+  #   image: "redis:7-alpine"
+  #   ports:
+  #     - "6379:6379"
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
 
   rabbitmq:
     image: "rabbitmq:3-management-alpine"
@@ -52,50 +50,54 @@ services:
       timeout: 5s
       retries: 5
 
-  server-b:
-    build:
-      context: ./server-b
-      dockerfile: Dockerfile
-    env_file:
-      - ./.env
-    ports:
-      - "${SERVER_B_PORT:-9000}:${SERVER_B_PORT:-9000}"
-    depends_on:
-      - rabbitmq
-      - postgres
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SERVER_B_PORT:-9000}/metrics"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # server-b:
+  #   build:
+  #     context: ./server-b
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - ./.env
+  #   ports:
+  #     - "${SERVER_B_PORT:-9000}:${SERVER_B_PORT:-9000}"
+  #   depends_on:
+  #     - rabbitmq
+  #     - postgres
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:${SERVER_B_PORT:-9000}/metrics"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_BASE_URL=${VITE_API_BASE_URL}
-    env_file:
-      - ./.env
-    ports:
-      - "5173:80"
-    depends_on:
-      - server-b
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #     args:
+  #       - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+  #   env_file:
+  #     - ./.env
+  #   ports:
+  #     - "5173:80"
+  #   depends_on:
+  #     - server-b
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
 
   server_b_web:
     build:
       context: ./server_b
       dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/smsgw
+      RABBITMQ_URL: amqp://rabbitmq:5672/
+      SECRET_KEY: changemete # Assuming this is needed for Django
+      DEBUG: "True" # Assuming this is needed for Django
+      ALLOWED_HOSTS: "*" # Assuming this is needed for Django
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./server_b:/app
-    env_file:
-      - ./server_b/.env
     ports:
       - "8100:8000"
     depends_on:
@@ -106,11 +108,15 @@ services:
     build:
       context: ./server_b
       dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/smsgw
+      RABBITMQ_URL: amqp://rabbitmq:5672/
+      SECRET_KEY: changemete 
+      DEBUG: "True" 
+      ALLOWED_HOSTS: "*"
     command: python manage.py consume_sms
     volumes:
       - ./server_b:/app
-    env_file:
-      - ./server_b/.env
     depends_on:
       - postgres
       - rabbitmq
