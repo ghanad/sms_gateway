@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">User Profile</h1>
+<div class="bg-white shadow-md rounded-lg p-6">
+    <p class="text-lg"><strong>Username:</strong> {{ user.username }}</p>
+    <p class="text-lg"><strong>Email:</strong> {{ user.email }}</p>
+    <p class="text-lg"><strong>Staff Status:</strong> {{ user.is_staff }}</p>
+    <p class="text-lg"><strong>Active:</strong> {{ user.is_active }}</p>
+</div>
+{% endblock %}

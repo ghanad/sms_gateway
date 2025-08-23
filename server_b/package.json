@@ -1,0 +1,10 @@
+{
+  "name": "sms-relay",
+  "private": true,
+  "devDependencies": {
+    "tailwindcss": "^3.4.4"
+  },
+  "scripts": {
+    "build": "tailwindcss -i ./frontend/input.css -o ./static/css/tailwind.css"
+  }
+}
