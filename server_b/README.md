@@ -23,8 +23,8 @@ Run tests:
 python manage.py test
 ```
 
-Docker Compose:
+Docker Compose (from repository root):
 
 ```bash
-docker-compose up --build
+docker-compose up --build server_b_web server_b_consumer
 ```

@@ -86,3 +86,31 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  server_b_web:
+    build:
+      context: ./server_b
+      dockerfile: Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./server_b:/app
+    env_file:
+      - ./server_b/.env
+    ports:
+      - "8100:8000"
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  server_b_consumer:
+    build:
+      context: ./server_b
+      dockerfile: Dockerfile
+    command: python manage.py consume_sms
+    volumes:
+      - ./server_b:/app
+    env_file:
+      - ./server_b/.env
+    depends_on:
+      - postgres
+      - rabbitmq
