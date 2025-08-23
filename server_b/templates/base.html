@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>SMS Relay</title>
+  <link href="{% static 'css/tailwind.css' %}" rel="stylesheet" />
+  <script src="{% static 'js/toast.js' %}"></script>
+</head>
+<body class="p-4">
+  {% for message in messages %}
+  <script>showToast("{{ message }}", "{{ message.tags }}");</script>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</body>
+</html>
