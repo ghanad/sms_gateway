@@ -45,6 +45,7 @@
                                         <summary class="btn btn-ghost h-8 w-24 flex items-center justify-center">Actions</summary>
                                         <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
                                             <a href="{% url 'user_update' user.pk %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Edit</a>
+                                            <a href="{% url 'user_toggle' user.pk %}" class="block px-4 py-2 text-sm {% if user.is_active %}text-red-700 hover:bg-red-100{% else %}text-green-700 hover:bg-green-100{% endif %}">{% if user.is_active %}Disable{% else %}Enable{% endif %}</a>
                                             <a href="{% url 'user_delete' user.pk %}" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-100">Delete</a>
                                         </div>
                                     </details>

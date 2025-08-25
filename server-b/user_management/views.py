@@ -1,9 +1,9 @@
 from django.contrib.auth.models import User
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, View
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 
 class StaffRequiredMixin(UserPassesTestMixin):
@@ -63,4 +63,18 @@ class UserDeleteView(StaffRequiredMixin, DeleteView):
 
     def form_invalid(self, form):
         messages.error(self.request, "Error deleting user.")
+        return redirect(reverse_lazy('user_list'))
+
+
+class UserToggleActiveView(StaffRequiredMixin, View):
+    """Toggle a user's active status."""
+
+    def get(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        user.is_active = not user.is_active
+        user.save()
+        if user.is_active:
+            messages.success(request, "User enabled successfully!")
+        else:
+            messages.success(request, "User disabled successfully!")
         return redirect(reverse_lazy('user_list'))
