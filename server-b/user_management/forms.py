@@ -6,7 +6,7 @@ from .models import Profile # Import the Profile model
 User = get_user_model()
 
 class CustomUserCreationForm(UserCreationForm):
-    api_key = forms.CharField(max_length=255, required=False, help_text="API Key for the user.")
+    api_key = forms.CharField(max_length=255, required=True, help_text="API Key for the user.")
     daily_quota = forms.IntegerField(required=False, initial=0, help_text="Daily SMS quota for the user (0 means no quota).")
 
     class Meta(UserCreationForm.Meta):
@@ -26,7 +26,7 @@ class CustomUserCreationForm(UserCreationForm):
 
 
 class CustomUserChangeForm(UserChangeForm):
-    api_key = forms.CharField(max_length=255, required=False, help_text="API Key for the user.")
+    api_key = forms.CharField(max_length=255, required=True, help_text="API Key for the user.")
     daily_quota = forms.IntegerField(required=False, help_text="Daily SMS quota for the user (0 means no quota).")
 
     class Meta(UserChangeForm.Meta):

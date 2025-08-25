@@ -28,7 +28,7 @@
                                     {{ field }}
                                 {% elif field.name == 'api_key' %}
                                     <div style="display: flex; align-items: center; gap: 10px;">
-                                        <input type="text" name="{{ field.name }}" id="{{ field.id_for_label }}" class="input" value="{{ field.value|default_if_none:'' }}">
+                                        <input type="text" name="{{ field.name }}" id="{{ field.id_for_label }}" class="input" value="{{ field.value|default_if_none:'' }}" required>
                                         <button type="button" class="btn btn-primary" id="generate-api-key">Generate</button>
                                     </div>
                                 {% else %}
