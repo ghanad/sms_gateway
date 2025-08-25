@@ -64,6 +64,7 @@
                 {% if user.is_staff %}
                 <a href="{% url 'user_update' user.pk %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Profile</a>
                 {% endif %}
+                <a href="{% url 'account_change_password' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Change Password</a>
                 <a href="{% url 'account_logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Logout</a>
             </div>
         </details>
