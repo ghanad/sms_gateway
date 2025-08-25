@@ -1,23 +1,35 @@
+<!-- server-b/providers/templates/providers/smsprovider_confirm_delete.html -->
 {% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock extra_head %}
 
 {% block content %}
-<div class="bg-white p-8 rounded-lg shadow-lg max-w-2xl mx-auto">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">Delete SMS Provider</h1>
-        <a href="{% url 'sms_provider_list' %}" class="text-blue-500 hover:text-blue-700">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-            </svg>
-        </a>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1 class="title">Delete Provider</h1>
+      <p class="subtitle">This action cannot be undone.</p>
     </div>
-    <p class="text-gray-600 mb-6">Are you sure you want to delete the SMS provider "{{ object.name }}"?</p>
-    <form method="post">
+    <div>
+      <a class="btn" href="{% url 'sms_provider_list' %}">Back to list</a>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="card__body">
+      <p class="subtitle">Are you sure you want to delete the SMS provider “{{ object.name }}”?</p>
+      <form method="post">
         {% csrf_token %}
-        <div class="flex justify-end">
-            <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                Delete
-            </button>
+        <div class="panel__footer">
+          <a class="btn" href="{% url 'sms_provider_list' %}">Cancel</a>
+          <button type="submit" class="btn btn-danger">Delete</button>
         </div>
-    </form>
+      </form>
+    </div>
+  </section>
 </div>
-{% endblock %}
+{% endblock content %}
+
