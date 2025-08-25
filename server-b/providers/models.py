@@ -1,7 +1,11 @@
+# models.py
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
+
+class ProviderType(models.TextChoices):
+    MAGFA = "magfa", _("Magfa")
 
 class AuthType(models.TextChoices):
     NONE = "none", _("No Auth")
@@ -14,14 +18,18 @@ class SmsProvider(models.Model):
     name = models.CharField(max_length=64, unique=True)
     slug = models.SlugField(unique=True)
 
-    # Required endpoints
+    # Driver/type selector (برای سوییچ در لایهٔ سرویس/درایور)
+    provider_type = models.CharField(
+        max_length=16, choices=ProviderType.choices, default=ProviderType.MAGFA
+    )
+
+    # Required endpoints (حداقل: send & balance)
     send_url = models.URLField()
     balance_url = models.URLField()
 
-    # Optional defaults
     default_sender = models.CharField(
-        max_length=32, blank=True,
-        help_text="Optional default sender (line number) for this provider."
+        max_length=32,
+        help_text="Line number (sender) represented by this provider instance."
     )
 
     # Auth & static request config
@@ -32,9 +40,9 @@ class SmsProvider(models.Model):
         default=dict, blank=True,
         help_text=(
             "Provider-specific auth data. Examples:\n"
-            "- BASIC: {\"username\": \"u\", \"password_env\": \"MAGFA_PASSWORD\", \"domain\": \"d\"}"
-            "- API_KEY_HEADER: {\"key\": \"...\", \"header_name\": \"Authorization\"}"
-            "- API_KEY_QUERY: {\"key\": \"...\", \"param_name\": \"api_key\"}"
+            "- BASIC: {\"username\": \"u\", \"password_env\": \"MAGFA_PASSWORD\", \"domain\": \"d\"}\n"
+            "- API_KEY_HEADER: {\"key\": \"...\", \"header_name\": \"Authorization\"}\n"
+            "- API_KEY_QUERY: {\"key\": \"...\", \"param_name\": \"api_key\"}\n"
             "- OAUTH2_CLIENT: {\"token_url\": \"...\", \"client_id\": \"...\", \"client_secret_env\": \"...\", \"scope\": \"...\"}"
         )
     )
@@ -45,29 +53,44 @@ class SmsProvider(models.Model):
 
     timeout_seconds = models.PositiveSmallIntegerField(default=10)
     is_active = models.BooleanField(default=True)
+
     priority = models.PositiveSmallIntegerField(
         default=50,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
-        help_text="Provider priority, from 0 (lowest) to 100 (highest)."
+        help_text="Higher means higher priority (unique per provider_type)."
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        ordering = ["-priority", "name"]
         indexes = [
             models.Index(fields=["is_active", "slug"]),
+            models.Index(fields=["provider_type", "is_active", "priority"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider_type", "default_sender"],
+                name="uq_provider_type_sender"
+            ),
+            models.UniqueConstraint(
+                fields=["provider_type", "priority"],
+                name="uq_priority_per_provider_type"
+            ),
         ]
 
     def __str__(self):
         return self.name
 
     def clean(self):
-        """Minimal validation depending on auth_type."""
         ac = self.auth_config or {}
+
+        if not self.default_sender:
+            raise ValidationError({"default_sender": "default_sender is required."})
+
         if self.auth_type == AuthType.BASIC:
             missing = [k for k in ["username"] if k not in ac]
-            # password can be provided via "password" or "password_env"
             if "password" not in ac and "password_env" not in ac:
                 missing.append("password or password_env")
             if missing:
