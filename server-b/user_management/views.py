@@ -41,7 +41,7 @@ class UserCreateView(StaffRequiredMixin, CreateView):
 class UserUpdateView(StaffRequiredMixin, UpdateView):
     model = User
     form_class = UserChangeForm
-    template_name = 'user_management/user_list.html' # Render user_list.html
+    template_name = 'user_management/user_form.html'
     success_url = reverse_lazy('user_list')
 
     def form_valid(self, form):
