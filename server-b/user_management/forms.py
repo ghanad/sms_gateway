@@ -28,12 +28,19 @@ class CustomUserChangeForm(UserChangeForm):
 
     class Meta(UserChangeForm.Meta):
         model = User
-        fields = ('username', 'email', 'first_name', 'last_name', 'is_active', 'is_staff', 'is_superuser', 'api_key')
+        fields = ('username', 'email', 'first_name', 'last_name', 'is_superuser', 'api_key') # Removed 'is_staff'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance and hasattr(self.instance, 'profile'):
             self.fields['api_key'].initial = self.instance.profile.api_key
+        # Remove password fields
+        if 'password' in self.fields:
+            del self.fields['password']
+        if 'password1' in self.fields:
+            del self.fields['password1']
+        if 'password2' in self.fields:
+            del self.fields['password2']
 
     def save(self, commit=True):
         user = super().save(commit=False)

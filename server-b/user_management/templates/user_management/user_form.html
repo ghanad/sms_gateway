@@ -63,6 +63,9 @@
                     </script>
                     <div class="panel__footer">
                         <a href="{% url 'user_list' %}" class="btn">Cancel</a>
+                        {% if form.instance.pk %}
+                            <a href="{% url 'user_password_change' form.instance.pk %}" class="btn btn-primary">Change Password</a>
+                        {% endif %}
                         <button type="submit" class="btn btn-primary">{% if form.instance.pk %}Save changes{% else %}Create user{% endif %}</button>
                     </div>
                 </form>
