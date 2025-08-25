@@ -7,17 +7,19 @@ User = get_user_model()
 
 class CustomUserCreationForm(UserCreationForm):
     api_key = forms.CharField(max_length=255, required=False, help_text="API Key for the user.")
+    daily_quota = forms.IntegerField(required=False, initial=0, help_text="Daily SMS quota for the user (0 means no quota).")
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = UserCreationForm.Meta.fields + ('api_key',)
+        fields = UserCreationForm.Meta.fields + ('api_key', 'daily_quota',)
 
     def save(self, commit=True):
         user = super().save(commit=False)
         if commit:
             user.save()
-        # The signal should have created the profile, now update its api_key
+        # The signal should have created the profile, now update its api_key and daily_quota
         user.profile.api_key = self.cleaned_data['api_key']
+        user.profile.daily_quota = self.cleaned_data['daily_quota']
         if commit:
             user.profile.save()
         return user
@@ -25,15 +27,17 @@ class CustomUserCreationForm(UserCreationForm):
 
 class CustomUserChangeForm(UserChangeForm):
     api_key = forms.CharField(max_length=255, required=False, help_text="API Key for the user.")
+    daily_quota = forms.IntegerField(required=False, help_text="Daily SMS quota for the user (0 means no quota).")
 
     class Meta(UserChangeForm.Meta):
         model = User
-        fields = ('username', 'email', 'first_name', 'last_name', 'is_superuser', 'api_key') # Removed 'is_staff'
+        fields = ('username', 'email', 'first_name', 'last_name', 'is_superuser', 'api_key', 'daily_quota',) # Added 'daily_quota'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance and hasattr(self.instance, 'profile'):
             self.fields['api_key'].initial = self.instance.profile.api_key
+            self.fields['daily_quota'].initial = self.instance.profile.daily_quota # Set initial value for daily_quota
         # Remove password fields
         if 'password' in self.fields:
             del self.fields['password']
@@ -48,6 +52,7 @@ class CustomUserChangeForm(UserChangeForm):
             user.save()
         if hasattr(user, 'profile'):
             user.profile.api_key = self.cleaned_data['api_key']
+            user.profile.daily_quota = self.cleaned_data['daily_quota'] # Save daily_quota
             if commit:
                 user.profile.save()
         return user
