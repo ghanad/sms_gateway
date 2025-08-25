@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock extra_head %}
+
+{% block content %}
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1 class="title">Create New User</h1>
+                <p class="subtitle">Fill in the details to add a new user.</p>
+            </div>
+        </div>
+
+        <!-- Card -->
+        <section class="card">
+            <div class="card__body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="grid">
+                        {% for field in form %}
+                            <div>
+                                <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {% if field.widget_type == 'checkbox' %}
+                                    {{ field }}
+                                {% else %}
+                                    <input type="{{ field.widget_type }}" name="{{ field.name }}" id="{{ field.id_for_label }}" class="input" value="{{ field.value|default_if_none:'' }}">
+                                {% endif %}
+                                {% if field.help_text %}
+                                    <p class="subtitle">{{ field.help_text }}</p>
+                                {% endif %}
+                                {% for error in field.errors %}
+                                    <p class="text-red-500 text-sm">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="panel__footer">
+                        <a href="{% url 'user_list' %}" class="btn">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Create user</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </div>
+{% endblock content %}

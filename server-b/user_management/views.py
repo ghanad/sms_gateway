@@ -24,7 +24,7 @@ class UserListView(StaffRequiredMixin, ListView):
 class UserCreateView(StaffRequiredMixin, CreateView):
     model = User
     form_class = UserCreationForm
-    template_name = 'user_management/user_list.html' # Render user_list.html
+    template_name = 'user_management/user_create.html' # Render user_create.html
     success_url = reverse_lazy('user_list')
 
     def form_valid(self, form):

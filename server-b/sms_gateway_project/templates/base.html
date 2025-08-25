@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SMS Gateway</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
+    <link
+      rel="stylesheet"
+      as="style"
+      onload="this.rel='stylesheet'"
+      href="https://fonts.googleapis.com/css2?display=swap&family=Inter%3Awght%40400%3B500%3B700%3B900&family=Noto+Sans%3Awght%40400%3B500%3B700%3B900"
+    />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -22,33 +29,71 @@
         }
       }
     </script>
+    {% load static %}
+    {% block extra_head %}{% endblock extra_head %}
 </head>
-<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-    <div class="w-full max-w-4xl mx-auto"> <!-- New main container -->
-        <nav class="mb-6"> <!-- Adjusted nav styling -->
-            <div class="bg-white/80 backdrop-blur shadow-lg ring-1 ring-black/5 rounded-2xl p-4 flex justify-between items-center">
-                <a href="{% url 'dashboard' %}" class="text-lg font-bold text-slate-900 hover:underline">Dashboard</a>
-                <div>
-                    {% if user.is_authenticated %}
-                        <a href="{% url 'user_list' %}" class="ml-4 text-slate-700 hover:underline">User Management</a>
-                        <a href="{% url 'account_logout' %}" class="ml-4 text-slate-700 hover:underline">Logout</a>
-                    {% else %}
-                        <a href="{% url 'account_login' %}" class="ml-4 text-slate-700 hover:underline">Login</a>
-                {% endif %}
+<body class="relative flex size-full min-h-screen flex-col bg-white group/design-root overflow-x-hidden" style='font-family: Inter, "Noto Sans", sans-serif;'>
+    <div class="layout-container flex h-full grow flex-col">
+
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f0f2f5] px-10 py-3">
+    <div class="flex items-center gap-4 text-[#111418]">
+        <div class="size-4">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M24 45.8096C19.6865 45.8096 15.4698 44.5305 11.8832 42.134C8.29667 39.7376 5.50128 36.3314 3.85056 32.3462C2.19985 28.361 1.76794 23.9758 2.60947 19.7452C3.451 15.5145 5.52816 11.6284 8.57829 8.5783C11.6284 5.52817 15.5145 3.45101 19.7452 2.60948C23.9758 1.76795 28.361 2.19986 32.3462 3.85057C36.3314 5.50129 39.7376 8.29668 42.134 11.8833C44.5305 15.4698 45.8096 19.6865 45.8096 24L24 24L24 45.8096Z" fill="currentColor"></path>
+            </svg>
+        </div>
+        <a href="{% url 'dashboard' %}" class="text-[#111418] text-lg font-bold leading-tight tracking-[-0.015em]">SMS Gateway</a>
+    </div>
+    <div class="flex flex-1 items-center justify-end gap-8">
+        <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="#">Providers</a>
+        <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="#">Message</a>
+        <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'user_list' %}">Users</a>
+        {% if user.is_authenticated %}
+        <details class="relative">
+            <summary class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 bg-[#f0f2f5] text-[#111418] gap-2 text-sm font-bold leading-normal tracking-[0.015em] min-w-0 px-2.5">
+                <div class="text-[#111418]" data-icon="User" data-size="20px" data-weight="regular">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" fill="currentColor" viewBox="0 0 256 256">
+                        <path d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z"></path>
+                    </svg>
+                </div>
+            </summary>
+            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                <a href="{% url 'account_logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Logout</a>
+            </div>
+        </details>
+        {% else %}
+        <a href="{% url 'account_login' %}" class="text-slate-700 hover:underline">Login</a>
+        {% endif %}
+    </div>
+</header>
+
+
+        <div class="px-40 flex flex-1 justify-center py-5">
+            <div class="layout-content-container flex flex-col max-w-[960px] flex-1">
+                <main>
+                    {% block content %}
+                    {% endblock %}
+                </main>
             </div>
         </div>
-    </nav>
-    {% if messages %}
-        <ul class="messages max-w-4xl mx-auto p-4">
+    </div>
+<script type="text/javascript" src="{% static 'js/toastify-js.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if messages %}
             {% for message in messages %}
-                <li{% if message.tags %} class="{{ message.tags }} p-2 rounded-md mb-2 text-white {% if message.tags == 'success' %}bg-green-500{% elif message.tags == 'error' %}bg-red-500{% else %}bg-blue-500{% endif %}"{% endif %}>{{ message }}</li>
+                Toastify({
+                    text: "{{ message }}",
+                    duration: 3000,
+                    close: true,
+                    gravity: "top", // `top` or `bottom`
+                    position: "right", // `left`, `center` or `right`
+                    backgroundColor: "{% if message.tags == 'success' %}linear-gradient(to right, #00b09b, #96c93d){% elif message.tags == 'error' %}linear-gradient(to right, #ff5f6d, #ffc371){% else %}linear-gradient(to right, #4facfe, #00f2fe){% endif %}",
+                    stopOnFocus: true, // Prevents dismissing of toast on hover
+                }).showToast();
             {% endfor %}
-        </ul>
-    {% endif %}
-    <main>
-        {% block content %}
-        {% endblock %}
-    </main>
-</div>
+        {% endif %}
+    });
+</script>
 </body>
 </html>

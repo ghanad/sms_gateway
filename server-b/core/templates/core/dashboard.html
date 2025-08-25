@@ -1,17 +1,66 @@
 {% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock extra_head %}
 
 {% block content %}
-    <div class="container mx-auto p-4">
-        <!-- Header -->
-        <header class="mb-6 text-center">
-            <h1 class="text-2xl font-semibold text-slate-900">Welcome to the Dashboard, {{ user.username }}!</h1>
-            <p class="mt-1 text-sm text-slate-500">This is your main dashboard.</p>
-        </header>
+    <div class="relative flex size-full min-h-screen flex-col bg-white group/design-root overflow-x-hidden" style='font-family: Inter, "Noto Sans", sans-serif;'>
+        <div class="layout-container flex h-full grow flex-col">
+            <div class="px-40 flex flex-1 justify-center py-5">
+                <div class="layout-content-container flex flex-col max-w-[960px] flex-1">
+                    <div class="container">
+                        <!-- Header -->
+                        <div class="header">
+                            <div>
+                                <h1 class="title">Welcome to the Dashboard, {{ user.username }}!</h1>
+                                <p class="subtitle">This is your main dashboard.</p>
+                            </div>
+                        </div>
 
-        <!-- Dashboard Content Card -->
-        <section class="rounded-2xl bg-white/80 backdrop-blur shadow-lg ring-1 ring-black/5 p-6 md:p-8 space-y-5">
-            <p>Your dashboard content goes here.</p>
-            <p>You can add more sections and information as needed.</p>
-        </section>
+                        <!-- Dashboard Content Card -->
+                        <section class="card">
+                            <div class="card__body">
+                                <!-- Placeholder Toolbar -->
+                                <div class="toolbar">
+                                    <input class="input" placeholder="Search dashboard items..." />
+                                    <span class="subtitle">Total items: X</span>
+                                </div>
+
+                                <!-- Placeholder Table -->
+                                <div class="table-wrap">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Item Name</th>
+                                                <th>Status</th>
+                                                <th class="text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>Dashboard Item 1</td>
+                                                <td><span class="pill pill--on">Active</span></td>
+                                                <td class="text-right">
+                                                    <button class="btn btn-ghost">View</button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Dashboard Item 2</td>
+                                                <td><span class="pill pill--off">Inactive</span></td>
+                                                <td class="text-right">
+                                                    <button class="btn btn-ghost">View</button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 {% endblock %}
