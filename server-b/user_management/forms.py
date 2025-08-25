@@ -1,9 +1,27 @@
 from django import forms
-from django.contrib.auth.forms import UserChangeForm
+from django.contrib.auth.forms import UserChangeForm, UserCreationForm # Import UserCreationForm
 from django.contrib.auth import get_user_model
 from .models import Profile # Import the Profile model
 
 User = get_user_model()
+
+class CustomUserCreationForm(UserCreationForm):
+    api_key = forms.CharField(max_length=255, required=False, help_text="API Key for the user.")
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = UserCreationForm.Meta.fields + ('api_key',)
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        if commit:
+            user.save()
+        # The signal should have created the profile, now update its api_key
+        user.profile.api_key = self.cleaned_data['api_key']
+        if commit:
+            user.profile.save()
+        return user
+
 
 class CustomUserChangeForm(UserChangeForm):
     api_key = forms.CharField(max_length=255, required=False, help_text="API Key for the user.")

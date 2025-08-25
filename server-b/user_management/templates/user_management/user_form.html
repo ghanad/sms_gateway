@@ -26,6 +26,11 @@
                                 <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                                 {% if field.widget_type == 'checkbox' %}
                                     {{ field }}
+                                {% elif field.name == 'api_key' %}
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <input type="text" name="{{ field.name }}" id="{{ field.id_for_label }}" class="input" value="{{ field.value|default_if_none:'' }}">
+                                        <button type="button" class="btn btn-primary" id="generate-api-key">Generate</button>
+                                    </div>
                                 {% else %}
                                     <input type="{{ field.widget_type }}" name="{{ field.name }}" id="{{ field.id_for_label }}" class="input" value="{{ field.value|default_if_none:'' }}">
                                 {% endif %}
@@ -38,6 +43,24 @@
                             </div>
                         {% endfor %}
                     </div>
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const generateApiKeyBtn = document.getElementById('generate-api-key');
+                            const apiKeyInput = document.getElementById('id_api_key'); // Assuming id is 'id_api_key'
+
+                            if (generateApiKeyBtn && apiKeyInput) {
+                                generateApiKeyBtn.addEventListener('click', function() {
+                                    // Generate a random string (e.g., UUID-like)
+                                    const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                                        const r = Math.random() * 16 | 0,
+                                            v = c == 'x' ? r : (r & 0x3 | 0x8);
+                                        return v.toString(16);
+                                    });
+                                    apiKeyInput.value = uuid;
+                                });
+                            }
+                        });
+                    </script>
                     <div class="panel__footer">
                         <a href="{% url 'user_list' %}" class="btn">Cancel</a>
                         <button type="submit" class="btn btn-primary">{% if form.instance.pk %}Save changes{% else %}Create user{% endif %}</button>

@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .forms import CustomUserChangeForm
+from .forms import CustomUserChangeForm, CustomUserCreationForm
 
 
 class StaffRequiredMixin(UserPassesTestMixin):
@@ -30,7 +30,7 @@ class UserListView(StaffRequiredMixin, ListView):
 
 class UserCreateView(StaffRequiredMixin, CreateView):
     model = User
-    form_class = UserCreationForm
+    form_class = CustomUserCreationForm # Use the custom creation form
     template_name = 'user_management/user_form.html'  # Render user_form.html
     success_url = reverse_lazy('user_list')
 
