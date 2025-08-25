@@ -3,12 +3,18 @@ from django.views.generic import ListView, CreateView, UpdateView, DeleteView, V
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from .forms import CustomUserChangeForm
+
 
 class StaffRequiredMixin(UserPassesTestMixin):
     def test_func(self):
         return self.request.user.is_staff
+
 
 class UserListView(StaffRequiredMixin, ListView):
     model = User
@@ -18,13 +24,14 @@ class UserListView(StaffRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['create_form'] = UserCreationForm()
-        context['update_form'] = UserChangeForm() # This will be an empty form initially
+        context['update_form'] = UserChangeForm()  # This will be an empty form initially
         return context
+
 
 class UserCreateView(StaffRequiredMixin, CreateView):
     model = User
     form_class = UserCreationForm
-    template_name = 'user_management/user_create.html' # Render user_create.html
+    template_name = 'user_management/user_form.html'  # Render user_form.html
     success_url = reverse_lazy('user_list')
 
     def form_valid(self, form):
@@ -33,15 +40,13 @@ class UserCreateView(StaffRequiredMixin, CreateView):
 
     def form_invalid(self, form):
         messages.error(self.request, "Error creating user. Please check the form.")
-        # This is tricky for modals. We need to re-render the list page with the form errors.
-        # A common pattern is to redirect back with messages, or use AJAX.
-        # For now, we'll redirect and rely on messages.
-        return redirect(reverse_lazy('user_list')) # Redirect back to list on error
+        return redirect(reverse_lazy('user_list'))
+
 
 class UserUpdateView(StaffRequiredMixin, UpdateView):
     model = User
-    form_class = UserChangeForm
-    template_name = 'user_management/user_form.html'
+    form_class = CustomUserChangeForm  # Use the custom form
+    template_name = 'user_management/user_form.html'  # Render user_form.html
     success_url = reverse_lazy('user_list')
 
     def form_valid(self, form):
@@ -50,7 +55,8 @@ class UserUpdateView(StaffRequiredMixin, UpdateView):
 
     def form_invalid(self, form):
         messages.error(self.request, "Error updating user. Please check the form.")
-        return redirect(reverse_lazy('user_list')) # Redirect back to list on error
+        return redirect(reverse_lazy('user_list'))
+
 
 class UserDeleteView(StaffRequiredMixin, DeleteView):
     model = User
@@ -66,15 +72,15 @@ class UserDeleteView(StaffRequiredMixin, DeleteView):
         return redirect(reverse_lazy('user_list'))
 
 
-class UserToggleActiveView(StaffRequiredMixin, View):
-    """Toggle a user's active status."""
-
-    def get(self, request, pk):
-        user = get_object_or_404(User, pk=pk)
-        user.is_active = not user.is_active
-        user.save()
-        if user.is_active:
-            messages.success(request, "User enabled successfully!")
-        else:
-            messages.success(request, "User disabled successfully!")
-        return redirect(reverse_lazy('user_list'))
+@method_decorator(csrf_exempt, name='dispatch')
+class ToggleUserStatusView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        try:
+            user = User.objects.get(pk=pk)
+            user.is_active = not user.is_active
+            user.save()
+            return JsonResponse({'success': True, 'is_active': user.is_active})
+        except User.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'User not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)

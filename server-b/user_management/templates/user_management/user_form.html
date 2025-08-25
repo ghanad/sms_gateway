@@ -1,48 +1,49 @@
 {% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock extra_head %}
 
 {% block content %}
-    <div class="container mx-auto p-4">
+    <div class="container">
         <!-- Header -->
-        <header class="mb-6 text-center">
-            <h1 class="text-2xl font-semibold text-slate-900">{% if form.instance.pk %}Edit{% else %}Create{% endif %} User</h1>
-            <p class="mt-1 text-sm text-slate-500">{% if form.instance.pk %}Update user details.{% else %}Create a new user account.{% endif %}</p>
-        </header>
+        <div class="header">
+            <div>
+                <h1 class="title">{% if form.instance.pk %}Edit User{% else %}Create New User{% endif %}</h1>
+                <p class="subtitle">{% if form.instance.pk %}Update user details.{% else %}Fill in the details to add a new user.{% endif %}</p>
+            </div>
+        </div>
 
-        <!-- User Form Card -->
-        <section class="rounded-2xl bg-white/80 backdrop-blur shadow-lg ring-1 ring-black/5 p-6 md:p-8 space-y-5">
-            <form method="post" class="space-y-5">
-                {% csrf_token %}
-
-                {% if form.errors %}
-                    <div class="text-red-500 text-sm">
+        <!-- Card -->
+        <section class="card">
+            <div class="card__body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="grid">
                         {% for field in form %}
-                            {% if field.errors %}
+                            <div>
+                                <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {% if field.widget_type == 'checkbox' %}
+                                    {{ field }}
+                                {% else %}
+                                    <input type="{{ field.widget_type }}" name="{{ field.name }}" id="{{ field.id_for_label }}" class="input" value="{{ field.value|default_if_none:'' }}">
+                                {% endif %}
+                                {% if field.help_text %}
+                                    <p class="subtitle">{{ field.help_text }}</p>
+                                {% endif %}
                                 {% for error in field.errors %}
-                                    <p>{{ error }}</p>
+                                    <p class="text-red-500 text-sm">{{ error }}</p>
                                 {% endfor %}
-                            {% endif %}
+                            </div>
                         {% endfor %}
-                        {% if form.non_field_errors %}
-                            {% for error in form.non_field_errors %}
-                                <p>{{ error }}</p>
-                            {% endfor %}
-                        {% endif %}
                     </div>
-                {% endif %}
-
-                {% for field in form %}
-                    <div>
-                        <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.help_text %}
-                            <p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>
-                        {% endif %}
+                    <div class="panel__footer">
+                        <a href="{% url 'user_list' %}" class="btn">Cancel</a>
+                        <button type="submit" class="btn btn-primary">{% if form.instance.pk %}Save changes{% else %}Create user{% endif %}</button>
                     </div>
-                {% endfor %}
-
-                <button type="submit" class="w-full rounded-xl bg-slate-900 text-white py-2.5 font-medium shadow hover:shadow-md transition">Save</button>
-            </form>
-            <a href="{% url 'user_list' %}" class="block text-center text-blue-600 hover:underline mt-4">Back to User List</a>
+                </form>
+            </div>
         </section>
     </div>
-{% endblock %}
+{% endblock content %}

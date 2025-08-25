@@ -45,8 +45,12 @@
                                         <summary class="btn btn-ghost h-8 w-24 flex items-center justify-center">Actions</summary>
                                         <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
                                             <a href="{% url 'user_update' user.pk %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Edit</a>
-                                            <a href="{% url 'user_toggle' user.pk %}" class="block px-4 py-2 text-sm {% if user.is_active %}text-red-700 hover:bg-red-100{% else %}text-green-700 hover:bg-green-100{% endif %}">{% if user.is_active %}Disable{% else %}Enable{% endif %}</a>
                                             <a href="{% url 'user_delete' user.pk %}" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-100">Delete</a>
+                                            {% if user.is_active %}
+                                                <a href="#" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-100 toggle-user-status-btn" data-user-id="{{ user.pk }}" data-is-active="false">Disable</a>
+                                            {% else %}
+                                                <a href="#" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-100 toggle-user-status-btn" data-user-id="{{ user.pk }}" data-is-active="true">Enable</a>
+                                            {% endif %}
                                         </div>
                                     </details>
                                 </td>
@@ -102,6 +106,7 @@
             </div>
         </div>
     </div>
+    <script src="{% static 'js/toastify-js.js' %}"></script>
     <script>
       document.addEventListener('click', function(event) {
         document.querySelectorAll('details').forEach(function(detail) {
@@ -109,6 +114,104 @@
             detail.removeAttribute('open');
           }
         });
+      });
+
+      // CSRF token setup for AJAX requests
+      function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+              const cookies = document.cookie.split(';');
+              for (let i = 0; i < cookies.length; i++) {
+                  const cookie = cookies[i].trim();
+                  // Does this cookie string begin with the name we want?
+                  if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                      cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                      break;
+                  }
+              }
+          }
+          return cookieValue;
+      }
+      const csrftoken = getCookie('csrftoken');
+
+      document.querySelectorAll('.toggle-user-status-btn').forEach(function(button) {
+          button.addEventListener('click', function(e) {
+              e.preventDefault(); // Prevent default link behavior
+              const userId = this.dataset.userId;
+              const isActive = this.dataset.isActive === 'true'; // Convert string to boolean
+              const statusPill = document.getElementById(`status-pill-${userId}`);
+              const actionMenu = this.closest('.absolute'); // Get the parent action menu div
+
+              fetch(`{% url 'toggle_user_status' 0 %}`.replace('0', userId), {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': csrftoken
+                  },
+                  body: JSON.stringify({ is_active: isActive })
+              })
+              .then(response => response.json())
+              .then(data => {
+                  if (data.success) {
+                      // Update the pill text and class
+                      if (data.is_active) {
+                          statusPill.textContent = 'Active';
+                          statusPill.classList.remove('pill--off');
+                          statusPill.classList.add('pill--on');
+                          Toastify({
+                              text: "User activated successfully!",
+                              duration: 3000,
+                              close: true,
+                              gravity: "top", // `top` or `bottom`
+                              position: "right", // `left`, `center` or `right`
+                              backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
+                          }).showToast();
+                      } else {
+                          statusPill.textContent = 'Inactive';
+                          statusPill.classList.remove('pill--on');
+                          statusPill.classList.add('pill--off');
+                          Toastify({
+                              text: "User deactivated successfully!",
+                              duration: 3000,
+                              close: true,
+                              gravity: "top", // `top` or `bottom`
+                              position: "right", // `left`, `center` or `right`
+                              backgroundColor: "linear-gradient(to right, #ff5f6d, #ffc371)",
+                          }).showToast();
+                      }
+                      // Update action menu buttons
+                      const enableBtn = actionMenu.querySelector('[data-is-active="true"]');
+                      const disableBtn = actionMenu.querySelector('[data-is-active="false"]');
+                      if (data.is_active) {
+                          if (enableBtn) enableBtn.style.display = 'none';
+                          if (disableBtn) disableBtn.style.display = 'block';
+                      } else {
+                          if (enableBtn) enableBtn.style.display = 'block';
+                          if (disableBtn) disableBtn.style.display = 'none';
+                      }
+                  } else {
+                      Toastify({
+                          text: `Error: ${data.error}`,
+                          duration: 3000,
+                          close: true,
+                          gravity: "top", // `top` or `bottom`
+                          position: "right", // `left`, `center` or `right`
+                          backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
+                      }).showToast();
+                  }
+              })
+              .catch(error => {
+                  console.error('Error:', error);
+                  Toastify({
+                      text: "Network error. Please try again.",
+                      duration: 3000,
+                      close: true,
+                      gravity: "top", // `top` or `bottom`
+                      position: "right", // `left`, `center` or `right`
+                      backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
+                  }).showToast();
+              });
+          });
       });
     </script>
 {% endblock content %}
