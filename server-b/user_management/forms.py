@@ -11,7 +11,7 @@ class CustomUserCreationForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = UserCreationForm.Meta.fields + ('api_key', 'daily_quota',)
+        fields = UserCreationForm.Meta.fields + ('is_staff', 'api_key', 'daily_quota',) # Added 'is_staff', removed 'is_superuser'
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -31,7 +31,7 @@ class CustomUserChangeForm(UserChangeForm):
 
     class Meta(UserChangeForm.Meta):
         model = User
-        fields = ('username', 'email', 'first_name', 'last_name', 'is_superuser', 'api_key', 'daily_quota',) # Added 'daily_quota'
+        fields = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'api_key', 'daily_quota',) # Added 'is_staff', removed 'is_superuser'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
