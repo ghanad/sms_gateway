@@ -40,7 +40,13 @@ class SmsProviderForm(forms.ModelForm):
             # ===> استفاده از ویجت نهایی و اصلاح‌شده <===
             'auth_config': PlaceholderJsonTextarea(attrs={
                 'rows': 4,
-                'placeholder': 'BASIC example'
+                'placeholder': (
+                    'e.g.\n'
+                    'BASIC: { "username": "u", "password_env": "...", "domain": "d" }\n'
+                    'API_KEY_HEADER: { "key": "...", "header_name": "Authorization" }\n'
+                    'API_KEY_QUERY: { "key": "...", "param_name": "api_key" }\n'
+                    'OAUTH2_CLIENT: { "token_url": "...", "client_id": "...", "client_secret_env": "...", "scope": "..." }'
+                )
             }),
             'headers': PlaceholderJsonTextarea(attrs={
                 'rows': 4,

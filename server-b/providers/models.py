@@ -18,12 +18,10 @@ class SmsProvider(models.Model):
     name = models.CharField(max_length=64, unique=True)
     slug = models.SlugField(unique=True)
 
-    # Driver/type selector (برای سوییچ در لایهٔ سرویس/درایور)
     provider_type = models.CharField(
         max_length=16, choices=ProviderType.choices, default=ProviderType.MAGFA
     )
 
-    # Required endpoints (حداقل: send & balance)
     send_url = models.URLField()
     balance_url = models.URLField()
 
