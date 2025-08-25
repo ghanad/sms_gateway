@@ -1,11 +1,21 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h2>Delete User</h2>
-    <p>Are you sure you want to delete user "{{ object.username }}"?</p>
-    <form method="post">
-        {% csrf_token %}
-        <button type="submit">Confirm Delete</button>
-    </form>
-    <a href="{% url 'user_list' %}">Cancel</a>
+    <div class="container mx-auto p-4">
+        <!-- Header -->
+        <header class="mb-6 text-center">
+            <h1 class="text-2xl font-semibold text-slate-900">Delete User</h1>
+            <p class="mt-1 text-sm text-slate-500">Confirm deletion of user account.</p>
+        </header>
+
+        <!-- Delete Confirmation Card -->
+        <section class="rounded-2xl bg-white/80 backdrop-blur shadow-lg ring-1 ring-black/5 p-6 md:p-8 space-y-5">
+            <p class="text-center text-lg text-slate-700">Are you sure you want to delete user "<span class="font-semibold">{{ object.username }}</span>"?</p>
+            <form method="post" class="flex justify-center space-x-4">
+                {% csrf_token %}
+                <button type="submit" class="rounded-xl bg-red-600 text-white py-2.5 px-5 font-medium shadow hover:shadow-md transition">Confirm Delete</button>
+                <a href="{% url 'user_list' %}" class="rounded-xl bg-gray-300 text-slate-700 py-2.5 px-5 font-medium shadow hover:shadow-md transition">Cancel</a>
+            </form>
+        </section>
+    </div>
 {% endblock %}

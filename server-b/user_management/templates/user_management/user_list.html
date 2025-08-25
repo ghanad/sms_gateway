@@ -1,15 +1,356 @@
-{% extends 'base.html' %}
+<!-- Path: sms-gateway-project/designs/user-management.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
+    <link
+      rel="stylesheet"
+      as="style"
+      onload="this.rel='stylesheet'"
+      href="https://fonts.googleapis.com/css2?display=swap&family=Inter%3Awght%40400%3B500%3B700%3B900&family=Noto+Sans%3Awght%40400%3B500%3B700%3B900"
+    />
 
-{% block content %}
-    <h2>User List</h2>
-    <a href="{% url 'user_create' %}">Create New User</a>
-    <ul>
-        {% for user in users %}
-            <li>
-                {{ user.username }} - {{ user.email }}
-                <a href="{% url 'user_update' user.pk %}">Edit</a>
-                <a href="{% url 'user_delete' user.pk %}">Delete</a>
-            </li>
-        {% endfor %}
-    </ul>
-{% endblock %}
+    <title>User Management</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64," />
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+</head>
+<style>
+    :root{
+      --bg1:#f8fafc;          /* slate-50 */
+      --bg2:#eef2f7;          /* slate-100-ish */
+      --card:#ffffffcc;
+      --ring:#0f172a;         /* slate-900 */
+      --text:#0f172a;
+      --muted:#475569;        /* slate-600 */
+      --border:#e2e8f0;       /* slate-200 */
+      --shadow:0 10px 30px rgba(2,6,23,.08);
+      --radius:16px;
+    }
+
+    /* Layout */
+    html,body{height:100%;}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color:var(--text);
+      background: linear-gradient(135deg,var(--bg1),var(--bg2));
+    }
+    .container{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* Header */
+    .header{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:16px; margin-bottom:20px;
+    }
+    .title{
+      font-size:24px; font-weight:600; margin:0;
+    }
+    .subtitle{
+      margin:4px 0 0; color:var(--muted); font-size:14px;
+    }
+
+    /* Buttons */
+    .btn{
+      appearance:none; border:none; background:#fff; color:var(--text);
+      padding:10px 14px; border-radius:12px; font-weight:500; cursor:pointer;
+      border:1px solid var(--border);
+      transition: box-shadow .2s, transform .02s;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn:hover{ box-shadow: var(--shadow); }
+    .btn-primary{
+      background: var(--ring); color:#fff; border-color: transparent;
+    }
+    .btn-danger{ background:#e11d48; color:#fff; border-color:transparent; }
+    .btn-ghost{ background:#fff; color:var(--text); }
+
+    /* Card */
+    .card{
+      background: var(--card);
+      backdrop-filter: blur(6px);
+      border:1px solid rgba(0,0,0,.06);
+      border-radius: calc(var(--radius) + 4px);
+      box-shadow: var(--shadow);
+    }
+    .card__body{ padding: 20px; }
+    .toolbar{
+      display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap;
+    }
+
+    /* Inputs */
+    .input{
+      width: 320px; max-width: 100%;
+      padding: 10px 12px; border-radius:12px; border:1px solid var(--border);
+      background:#fff; color:var(--text); font-size:14px;
+      outline: none;
+      transition: box-shadow .2s, border-color .2s;
+    }
+    .input::placeholder{ color:#94a3b8; }
+    .input:focus{ border-color:#1f2937; box-shadow:0 0 0 3px rgba(15,23,42,.12); }
+
+    /* Table */
+    .table-wrap{ border-radius:12px; border:1px solid var(--border); }
+    table{ width:100%; border-collapse:collapse; font-size:14px; background:#fff; }
+    thead th{
+      position: sticky; top: 0; z-index: 1;
+      background:#f8fafc; color:#334155; text-align:left; font-weight:600;
+      padding: 12px; border-bottom:1px solid var(--border);
+    }
+    tbody td{
+      padding:12px; border-top:1px solid var(--border); color:#334155;
+    }
+    tbody tr:hover{ background:#f9fbff; }
+    .text-right{ text-align:right; }
+
+    /* Status pill */
+    .pill{
+      display:inline-flex; align-items:center; padding:4px 8px; font-size:12px; border-radius:999px;
+      border:1px solid;
+    }
+    .pill--on{ background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
+    .pill--off{ background:#fff1f2; color:#be123c; border-color:#fecdd3; }
+
+    /* Actions */
+    .actions{ display:inline-flex; gap:8px; }
+
+    /* Modal (CSS-only via :target) */
+    .modal{
+      position: fixed; inset:0; display:none;
+    }
+    .modal:target{ display:block; }
+    .modal__backdrop{
+      position:absolute; inset:0; background:rgba(0,0,0,.4);
+    }
+    .modal__panel{
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:16px; overflow:auto;
+    }
+    .panel{
+      width:100%; max-width: 720px; background:#fff; border-radius:16px;
+      border:1px solid var(--border); box-shadow: var(--shadow);
+      max-height: 90vh; overflow:auto;
+    }
+    .panel__header, .panel__footer{
+      position: sticky; background:#fff; z-index:2;
+      padding:16px 20px; border-bottom:1px solid var(--border);
+    }
+    .panel__header{ top:0; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+    .panel__footer{ bottom:0; border-top:1px solid var(--border); border-bottom:none; text-align:right; }
+    .panel__body{ padding:16px 20px; }
+
+    .grid{
+      display:grid; gap:12px;
+      grid-template-columns: 1fr 1fr;
+    }
+    .grid-3{ grid-template-columns: 1fr 1fr 1fr; }
+    .grid--full{ grid-template-columns: 1fr; }
+
+    .label{ display:block; font-size:13px; color:#334155; margin-bottom:6px; font-weight:600; }
+    .field{ width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:#fff; color:#0f172a; }
+    .checkbox{ width:16px; height:16px; vertical-align:middle; }
+
+    .close{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:36px; height:36px; border-radius:10px; border:1px solid var(--border); background:#fff; text-decoration:none; color:#0f172a;
+    }
+    .close:hover{ box-shadow: var(--shadow); }
+
+    /* Responsive */
+    @media (max-width: 768px){
+      .grid, .grid-3{ grid-template-columns: 1fr; }
+      .input{ width: 100%; }
+      .panel__footer{ text-align: left; }
+    }
+  </style>
+<body>
+    <div class="relative flex size-full min-h-screen flex-col bg-white group/design-root overflow-x-hidden" style='font-family: Inter, "Noto Sans", sans-serif;'>
+      <div class="layout-container flex h-full grow flex-col">
+        <header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f0f2f5] px-10 py-3">
+          <div class="flex items-center gap-4 text-[#111418]">
+            <div class="size-4">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M24 45.8096C19.6865 45.8096 15.4698 44.5305 11.8832 42.134C8.29667 39.7376 5.50128 36.3314 3.85056 32.3462C2.19985 28.361 1.76794 23.9758 2.60947 19.7452C3.451 15.5145 5.52816 11.6284 8.57829 8.5783C11.6284 5.52817 15.5145 3.45101 19.7452 2.60948C23.9758 1.76795 28.361 2.19986 32.3462 3.85057C36.3314 5.50129 39.7376 8.29668 42.134 11.8833C44.5305 15.4698 45.8096 19.6865 45.8096 24L24 24L24 45.8096Z"
+                  fill="currentColor"
+                ></path>
+              </svg>
+            </div>
+            <h2 class="text-[#111418] text-lg font-bold leading-tight tracking-[-0.015em]">SMS Gateway Admin</h2>
+          </div>
+          <div class="flex flex-1 justify-end gap-8">
+            <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="#">Providers</a>
+            <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="#">Message</a>
+            <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'user_list' %}">Users</a>
+            <button
+              class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 bg-[#f0f2f5] text-[#111418] gap-2 text-sm font-bold leading-normal tracking-[0.015em] min-w-0 px-2.5"
+            >
+              <div class="text-[#111418]" data-icon="User" data-size="20px" data-weight="regular">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" fill="currentColor" viewBox="0 0 256 256">
+                  <path
+                    d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z"
+                  ></path>
+                </svg>
+              </div>
+            </button>
+          </div>
+        </header>
+        <div class="px-40 flex flex-1 justify-center py-5">
+          <div class="layout-content-container flex flex-col max-w-[960px] flex-1">
+            <div class="container">
+              <!-- Header -->
+              <div class="header">
+                <div>
+                  <h1 class="title">User Management</h1>
+                  <p class="subtitle">Manage users and their access levels.</p>
+                </div>
+                <a href="#addUser" class="btn btn-primary">Add user</a>
+              </div>
+
+              <!-- Card -->
+              <section class="card">
+                <div class="card__body">
+                  <!-- Toolbar -->
+                  <div class="toolbar">
+                    <input class="input" placeholder="Search users..." />
+                    <span class="subtitle">Total: {{ users.count }}</span>
+                  </div>
+
+                  <!-- Table -->
+                  <div class="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Username</th>
+                          <th>Email</th>
+                          <th>Is Staff</th>
+                          <th>Is Active</th>
+                          <th class="text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for user in users %}
+                        <tr>
+                          <td><strong>{{ user.username }}</strong></td>
+                          <td>{{ user.email }}</td>
+                          <td><span class="pill {% if user.is_staff %}pill--on{% else %}pill--off{% endif %}">{% if user.is_staff %}Yes{% else %}No{% endif %}</span></td>
+                          <td><span class="pill {% if user.is_active %}pill--on{% else %}pill--off{% endif %}">{% if user.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+                          <td class="text-right">
+                            <details class="relative ml-auto">
+                              <summary class="btn btn-ghost h-8 w-24 flex items-center justify-center">Actions</summary>
+                              <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                                <a href="{% url 'user_update' user.pk %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Edit</a>
+                                <a href="{% url 'user_delete' user.pk %}" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-100">Delete</a>
+                              </div>
+                            </details>
+                          </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                          <td colspan="5">No users found.</td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <!-- Add User Modal (CSS-only) -->
+  <div id="addUser" class="modal" aria-hidden="true">
+    <a class="modal__backdrop" href="#"></a>
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
+      <div class="panel" role="document">
+        <div class="panel__header">
+          <div>
+            <h2 id="add-user-title" style="margin:0;font-size:18px;font-weight:600;">Create new user</h2>
+            <p class="subtitle" style="margin-top:6px;">Fill in the details to add a new user.</p>
+          </div>
+          <a class="close" href="#" aria-label="Close">×</a>
+        </div>
+
+        <div class="panel__body">
+          <form action="{% url 'user_create' %}" method="post">
+              {% csrf_token %}
+              <div class="grid">
+                  {% for field in create_form %}
+                      <div>
+                          <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                          {{ field }}
+                          {% if field.help_text %}
+                              <p class="subtitle">{{ field.help_text }}</p>
+                          {% endif %}
+                          {% for error in field.errors %}
+                              <p class="text-red-500 text-sm">{{ error }}</p>
+                          {% endfor %}
+                      </div>
+                  {% endfor %}
+              </div>
+              <div class="panel__footer">
+                  <a class="btn" href="#">Cancel</a>
+                  <button type="submit" class="btn btn-primary">Create user</button>
+              </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit User Modal (CSS-only; same layout) -->
+  <div id="editUser" class="modal" aria-hidden="true">
+    <a class="modal__backdrop" href="#"></a>
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="edit-user-title">
+      <div class="panel" role="document">
+        <div class="panel__header">
+          <div>
+            <h2 id="edit-user-title" style="margin:0;font-size:18px;font-weight:600;">Edit user</h2>
+            <p class="subtitle" style="margin-top:6px;">Update user details.</p>
+          </div>
+          <a class="close" href="#" aria-label="Close">×</a>
+        </div>
+
+        <div class="panel__body">
+          <form action="" method="post"> {# Action will be set by JS or dynamically #}
+              {% csrf_token %}
+              <div class="grid">
+                  {% for field in update_form %}
+                      <div>
+                          <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                          {{ field }}
+                          {% if field.help_text %}
+                              <p class="subtitle">{{ field.help_text }}</p>
+                          {% endif %}
+                          {% for error in field.errors %}
+                              <p class="text-red-500 text-sm">{{ error }}</p>
+                          {% endfor %}
+                      </div>
+                  {% endfor %}
+              </div>
+              <div class="panel__footer">
+                  <a class="btn" href="#">Cancel</a>
+                  <button type="submit" class="btn btn-primary">Save changes</button>
+              </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+    <script>
+      document.addEventListener('click', function(event) {
+        document.querySelectorAll('details').forEach(function(detail) {
+          if (!detail.contains(event.target)) {
+            detail.removeAttribute('open');
+          }
+        });
+      });
+    </script>
+</html>

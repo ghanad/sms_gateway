@@ -5,25 +5,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SMS Gateway</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                900: '#0f172a',
+                100: '#f1f5f9',
+              }
+            },
+            borderRadius: {
+              '2xl': '1rem'
+            }
+          }
+        }
+      }
+    </script>
 </head>
-<body class="bg-gray-100 font-sans antialiased">
-    <nav class="bg-blue-600 p-4 text-white flex justify-between items-center">
-        <div>
-            <a href="{% url 'dashboard' %}" class="text-lg font-bold hover:underline">Dashboard</a>
-        </div>
-        <div>
-            {% if user.is_authenticated %}
-                <a href="{% url 'user_list' %}" class="ml-4 hover:underline">User Management</a>
-                <a href="{% url 'account_logout' %}" class="ml-4 hover:underline">Logout</a>
-            {% else %}
-                <a href="{% url 'account_login' %}" class="ml-4 hover:underline">Login</a>
-            {% endif %}
+<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+    <div class="w-full max-w-4xl mx-auto"> <!-- New main container -->
+        <nav class="mb-6"> <!-- Adjusted nav styling -->
+            <div class="bg-white/80 backdrop-blur shadow-lg ring-1 ring-black/5 rounded-2xl p-4 flex justify-between items-center">
+                <a href="{% url 'dashboard' %}" class="text-lg font-bold text-slate-900 hover:underline">Dashboard</a>
+                <div>
+                    {% if user.is_authenticated %}
+                        <a href="{% url 'user_list' %}" class="ml-4 text-slate-700 hover:underline">User Management</a>
+                        <a href="{% url 'account_logout' %}" class="ml-4 text-slate-700 hover:underline">Logout</a>
+                    {% else %}
+                        <a href="{% url 'account_login' %}" class="ml-4 text-slate-700 hover:underline">Login</a>
+                {% endif %}
+            </div>
         </div>
     </nav>
-    <hr class="my-4 border-gray-300">
-    <div class="container mx-auto p-4">
+    {% if messages %}
+        <ul class="messages max-w-4xl mx-auto p-4">
+            {% for message in messages %}
+                <li{% if message.tags %} class="{{ message.tags }} p-2 rounded-md mb-2 text-white {% if message.tags == 'success' %}bg-green-500{% elif message.tags == 'error' %}bg-red-500{% else %}bg-blue-500{% endif %}"{% endif %}>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    <main>
         {% block content %}
         {% endblock %}
-    </div>
+    </main>
+</div>
 </body>
 </html>
