@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="bg-white p-8 rounded-lg shadow-lg max-w-4xl mx-auto">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">{% if object %}Edit{% else %}Add{% endif %} SMS Provider</h1>
+        <a href="{% url 'sms_provider_list' %}" class="text-blue-500 hover:text-blue-700">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+        </a>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.name.label }}</label>
+                {{ form.name }}
+                {% if form.name.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.name.help_text }}</p>
+                {% endif %}
+                {% for error in form.name.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label for="{{ form.slug.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.slug.label }}</label>
+                {{ form.slug }}
+                {% if form.slug.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.slug.help_text }}</p>
+                {% endif %}
+                {% for error in form.slug.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label for="{{ form.send_url.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.send_url.label }}</label>
+                {{ form.send_url }}
+                {% if form.send_url.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.send_url.help_text }}</p>
+                {% endif %}
+                {% for error in form.send_url.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label for="{{ form.balance_url.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.balance_url.label }}</label>
+                {{ form.balance_url }}
+                {% if form.balance_url.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.balance_url.help_text }}</p>
+                {% endif %}
+                {% for error in form.balance_url.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label for="{{ form.default_sender.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.default_sender.label }}</label>
+                {{ form.default_sender }}
+                {% if form.default_sender.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.default_sender.help_text }}</p>
+                {% endif %}
+                {% for error in form.default_sender.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label for="{{ form.auth_type.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.auth_type.label }}</label>
+                {{ form.auth_type }}
+                {% if form.auth_type.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.auth_type.help_text }}</p>
+                {% endif %}
+                {% for error in form.auth_type.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div class="md:col-span-2">
+                <label for="{{ form.auth_config.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.auth_config.label }}</label>
+                {{ form.auth_config }}
+                {% if form.auth_config.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.auth_config.help_text }}</p>
+                {% endif %}
+                {% for error in form.auth_config.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div class="md:col-span-2">
+                <label for="{{ form.headers.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.headers.label }}</label>
+                {{ form.headers }}
+                {% if form.headers.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.headers.help_text }}</p>
+                {% endif %}
+                {% for error in form.headers.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div class="md:col-span-2">
+                <label for="{{ form.query_params.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.query_params.label }}</label>
+                {{ form.query_params }}
+                {% if form.query_params.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.query_params.help_text }}</p>
+                {% endif %}
+                {% for error in form.query_params.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label for="{{ form.timeout_seconds.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.timeout_seconds.label }}</label>
+                {{ form.timeout_seconds }}
+                {% if form.timeout_seconds.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.timeout_seconds.help_text }}</p>
+                {% endif %}
+                {% for error in form.timeout_seconds.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label for="{{ form.priority.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.priority.label }}</label>
+                {{ form.priority }}
+                {% if form.priority.help_text %}
+                <p class="mt-2 text-sm text-gray-500">{{ form.priority.help_text }}</p>
+                {% endif %}
+                {% for error in form.priority.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div class="flex items-center">
+                {{ form.is_active }}
+                <label for="{{ form.is_active.id_for_label }}" class="ml-2 block text-sm text-gray-900">{{ form.is_active.label }}</label>
+            </div>
+        </div>
+        <div class="mt-8 flex justify-end">
+            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                Save
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

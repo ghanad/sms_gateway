@@ -46,7 +46,9 @@
         <a href="{% url 'dashboard' %}" class="text-[#111418] text-lg font-bold leading-tight tracking-[-0.015em]">SMS Gateway</a>
     </div>
     <div class="flex flex-1 items-center justify-end gap-8">
-        <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="#">Providers</a>
+        {% if user.is_staff %}
+        <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'sms_provider_list' %}">Providers</a>
+        {% endif %}
         <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="#">Message</a>
         {% if user.is_staff %}
         <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'user_list' %}">Users</a>

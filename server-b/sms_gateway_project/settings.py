@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'sms_gateway',
     'user_management',
     'core',
+    'providers',
 ]
 
 AUTHENTICATION_BACKENDS = [
