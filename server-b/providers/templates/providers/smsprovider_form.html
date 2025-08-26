@@ -24,6 +24,13 @@
     <div class="card__body">
       <form method="post" novalidate>
         {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}
+              <p>{{ error }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
 
         <div class="grid">
           <!-- Name -->

@@ -31,7 +31,6 @@ class SmsProviderForm(forms.ModelForm):
             # این ویجت‌ها از قبل درست بودند
             'name': widgets.TextInput(attrs={'placeholder': 'e.g. Magfa 3000991'}),
             'slug': widgets.TextInput(attrs={'placeholder': 'e.g. magfa-3000991'}),
-            'provider_type': widgets.Select(attrs={'data-placeholder': 'Select provider type'}),
             'send_url': widgets.TextInput(attrs={'placeholder': 'https://sms.magfa.com/api/http/sms/v2/send'}),
             'balance_url': widgets.TextInput(attrs={'placeholder': 'https://sms.magfa.com/api/http/sms/v2/balance'}),
             'default_sender': widgets.TextInput(attrs={'placeholder': 'e.g. 3000991'}),
@@ -72,6 +71,12 @@ class SmsProviderForm(forms.ModelForm):
             'is_active': widgets.CheckboxInput(attrs={'title': 'Enable/disable this provider'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'provider_type' in self.fields:
+            self.fields['provider_type'].required = False
+
+
     # بقیه فرم بدون تغییر باقی می‌ماند
     def clean_slug(self):
         slug = self.cleaned_data.get('slug')
@@ -80,10 +85,10 @@ class SmsProviderForm(forms.ModelForm):
         return slug
 
     def clean(self):
-        cleaned = super().clean()
-        provider_type = cleaned.get('provider_type')
-        priority = cleaned.get('priority')
-        default_sender = cleaned.get('default_sender')
+        cleaned_data = super().clean()
+        provider_type = cleaned_data.get('provider_type')
+        priority = cleaned_data.get('priority')
+        default_sender = cleaned_data.get('default_sender')
 
         if provider_type and priority is not None:
             qs = SmsProvider.objects.filter(provider_type=provider_type, priority=priority)
@@ -98,4 +103,4 @@ class SmsProviderForm(forms.ModelForm):
                 qs2 = qs2.exclude(pk=self.instance.pk)
             if qs2.exists():
                 self.add_error('default_sender', 'This sender is already configured for this provider type.')
-        return cleaned
+        return cleaned_data

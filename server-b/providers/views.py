@@ -18,11 +18,19 @@ class IsAdminMixin(UserPassesTestMixin):
     def test_func(self):
         return self.request.user.is_staff
 
+from .models import ProviderType
+
 class SmsProviderCreateView(IsAdminMixin, CreateView):
     model = SmsProvider
     form_class = SmsProviderForm
     template_name = 'providers/smsprovider_form.html'
     success_url = reverse_lazy('sms_provider_list')
+
+    def form_valid(self, form):
+        form.instance.provider_type = ProviderType.MAGFA
+        if form.instance.query_params is None:
+            form.instance.query_params = {}
+        return super().form_valid(form)
 
 class SmsProviderUpdateView(IsAdminMixin, UpdateView):
     model = SmsProvider
