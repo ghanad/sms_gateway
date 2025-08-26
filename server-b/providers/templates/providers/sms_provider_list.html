@@ -35,6 +35,7 @@
               <th>Slug</th>
               <th>Auth Type</th>
               <th class="text-right">Priority</th>
+              <th class="text-right">Balance</th>
               <th class="text-right">Status</th>
               <th class="text-right">Actions</th>
             </tr>
@@ -46,6 +47,7 @@
               <td>{{ sms_provider.slug }}</td>
               <td>{{ sms_provider.get_auth_type_display }}</td>
               <td class="text-right">{{ sms_provider.priority }}</td>
+              <td class="text-right"><span id="balance-{{ sms_provider.pk }}">-</span></td>
               <td class="text-right">
                 <span id="status-pill-{{ sms_provider.pk }}" class="pill {% if sms_provider.is_active %}pill--on{% else %}pill--off{% endif %}">
                   {% if sms_provider.is_active %}Active{% else %}Inactive{% endif %}
@@ -190,15 +192,8 @@
     button.addEventListener('click', function(e) {
       e.preventDefault();
       const providerId = this.dataset.providerId;
-
-      Toastify({
-        text: "Checking balance...",
-        duration: 2000,
-        close: true,
-        gravity: "top",
-        position: "right",
-        backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
-      }).showToast();
+      const balanceEl = document.getElementById(`balance-${providerId}`);
+      balanceEl.textContent = 'Checking...';
 
       fetch(`{% url 'check_balance' 0 %}`.replace('0', providerId), {
         method: 'GET',
@@ -209,6 +204,7 @@
         .then(response => response.json())
         .then(data => {
           if (data.error) {
+            balanceEl.textContent = `Error`;
             Toastify({
               text: `Error: ${data.error}`,
               duration: 3000,
@@ -218,18 +214,12 @@
               backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
             }).showToast();
           } else {
-            Toastify({
-              text: `Balance: ${data.balance}`,
-              duration: 3000,
-              close: true,
-              gravity: "top",
-              position: "right",
-              backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
-            }).showToast();
+            balanceEl.textContent = data.balance;
           }
         })
         .catch(error => {
           console.error('Error:', error);
+          balanceEl.textContent = `Error`;
           Toastify({
             text: "Error checking balance.",
             duration: 3000,
