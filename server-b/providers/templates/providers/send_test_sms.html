@@ -12,6 +12,9 @@
     <div>
       <h1 class="title">Send Test SMS</h1>
       <p class="subtitle">Send a test SMS using the provider: <strong>{{ provider.name }}</strong></p>
+      {% if balance %}
+        <p class="subtitle">Balance: <strong>{{ balance.balance }}</strong></p>
+      {% endif %}
     </div>
     <div>
       <a class="btn" href="{% url 'sms_provider_list' %}">Back to list</a>

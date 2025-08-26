@@ -64,7 +64,10 @@ class SendTestSmsView(IsAdminMixin, FormView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['provider'] = SmsProvider.objects.get(pk=self.kwargs['pk'])
+        provider = SmsProvider.objects.get(pk=self.kwargs['pk'])
+        context['provider'] = provider
+        adapter = get_provider_adapter(provider)
+        context['balance'] = adapter.get_balance()
         return context
 
     def form_valid(self, form):

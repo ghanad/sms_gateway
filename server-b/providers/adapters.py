@@ -9,13 +9,16 @@ class BaseSmsProvider:
     def send_sms(self, recipient: str, message: str) -> dict:
         raise NotImplementedError
 
+    def get_balance(self) -> dict:
+        raise NotImplementedError
+
 class MagfaSmsProvider(BaseSmsProvider):
     def send_sms(self, recipient: str, message: str) -> dict:
-        headers = {
-            'Content-Type': 'application/json',
-        }
-        if self.provider.auth_type == 'api_key_header':
-            headers[self.provider.auth_config.get('header_name', 'Authorization')] = self.provider.auth_config.get('key')
+        auth = None
+        if self.provider.auth_type == 'basic':
+            username = f"{self.provider.auth_config.get('username')}/{self.provider.auth_config.get('domain')}"
+            password = self.provider.auth_config.get('password') # In a real app, get this from env
+            auth = (username, password)
 
         payload = {
             'messages': [
@@ -23,11 +26,26 @@ class MagfaSmsProvider(BaseSmsProvider):
                     'recipient': recipient,
                     'content': message,
                 }
-            ]
+            ],
+            'senders': [self.provider.default_sender]
         }
 
         try:
-            response = requests.post(self.provider.send_url, headers=headers, json=payload, timeout=10)
+            response = requests.post(self.provider.send_url, auth=auth, json=payload, timeout=10)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {'error': str(e)}
+
+    def get_balance(self) -> dict:
+        auth = None
+        if self.provider.auth_type == 'basic':
+            username = f"{self.provider.auth_config.get('username')}/{self.provider.auth_config.get('domain')}"
+            password = self.provider.auth_config.get('password') # In a real app, get this from env
+            auth = (username, password)
+
+        try:
+            response = requests.get(self.provider.balance_url, auth=auth, timeout=10)
             response.raise_for_status()  # Raise an exception for bad status codes
             return response.json()
         except requests.exceptions.RequestException as e:
