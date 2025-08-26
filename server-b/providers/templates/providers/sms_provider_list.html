@@ -80,6 +80,8 @@
   </section>
 </div>
 {% endblock content %}
+
+{% block extra_scripts %}
 <script src="{% static 'js/toastify-js.js' %}"></script>
 <script>
   document.addEventListener('click', function(event) {
@@ -195,12 +197,7 @@
       const balanceEl = document.getElementById(`balance-${providerId}`);
       balanceEl.textContent = 'Checking...';
 
-      fetch(`{% url 'check_balance' 0 %}`.replace('0', providerId), {
-        method: 'GET',
-        headers: {
-          'X-CSRFToken': csrftoken
-        }
-      })
+      fetch(`{% url 'check_balance' 0 %}`.replace('0', providerId))
         .then(response => response.json())
         .then(data => {
           if (data.error) {
@@ -232,4 +229,5 @@
     });
   });
 </script>
+{% endblock extra_scripts %}
 
