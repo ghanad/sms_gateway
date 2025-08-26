@@ -25,13 +25,9 @@ class MagfaSmsProvider(BaseSmsProvider):
             auth = (username, password)
 
         payload = {
-            'messages': [
-                {
-                    'recipient': recipient,
-                    'content': message,
-                }
-            ],
-            'senders': [self.provider.default_sender]
+            'senders': [self.provider.default_sender],
+            'messages': [message],
+            'recipients': [recipient],
         }
 
         try:
