@@ -6,6 +6,7 @@ from .views import (
     SmsProviderDeleteView,
     ToggleProviderStatusView,
     SendTestSmsView,
+    CheckBalanceView,
 )
 
 urlpatterns = [
@@ -15,4 +16,5 @@ urlpatterns = [
     path('<int:pk>/delete/', SmsProviderDeleteView.as_view(), name='sms_provider_delete'),
     path('<int:pk>/toggle-status/', ToggleProviderStatusView.as_view(), name='toggle_provider_status'),
     path('<int:pk>/test/', SendTestSmsView.as_view(), name='sms_provider_test'),
+    path('<int:pk>/check-balance/', CheckBalanceView.as_view(), name='check_balance'),
 ]

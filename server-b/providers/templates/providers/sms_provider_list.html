@@ -57,6 +57,7 @@
                   <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
                     <a href="{% url 'sms_provider_edit' sms_provider.pk %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Edit</a>
                     <a href="{% url 'sms_provider_delete' sms_provider.pk %}" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-100">Delete</a>
+                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 check-balance-btn" data-provider-id="{{ sms_provider.pk }}">Check Balance</a>
                     <a href="{% url 'sms_provider_test' sms_provider.pk %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Send Test SMS</a>
                     {% if sms_provider.is_active %}
                       <a href="#" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-100 toggle-provider-status-btn" data-provider-id="{{ sms_provider.pk }}" data-is-active="false">Disable</a>
@@ -183,6 +184,57 @@
               }).showToast();
           });
       });
+  });
+
+  document.querySelectorAll('.check-balance-btn').forEach(function(button) {
+    button.addEventListener('click', function(e) {
+      e.preventDefault();
+      const providerId = this.dataset.providerId;
+
+      Toastify({
+        text: "Checking balance...",
+        duration: 2000,
+        close: true,
+        gravity: "top",
+        position: "right",
+        backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
+      }).showToast();
+
+      fetch(`{% url 'check_balance' 0 %}`.replace('0', providerId))
+        .then(response => response.json())
+        .then(data => {
+          if (data.error) {
+            Toastify({
+              text: `Error: ${data.error}`,
+              duration: 3000,
+              close: true,
+              gravity: "top",
+              position: "right",
+              backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
+            }).showToast();
+          } else {
+            Toastify({
+              text: `Balance: ${data.balance}`,
+              duration: 3000,
+              close: true,
+              gravity: "top",
+              position: "right",
+              backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
+            }).showToast();
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          Toastify({
+            text: "Error checking balance.",
+            duration: 3000,
+            close: true,
+            gravity: "top",
+            position: "right",
+            backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
+          }).showToast();
+        });
+    });
   });
 </script>
 

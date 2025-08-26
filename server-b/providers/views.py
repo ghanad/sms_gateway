@@ -1,20 +1,27 @@
 from django.shortcuts import render
-from django.views.generic import ListView
+from django.views.generic import ListView, View
 from django.views.generic.edit import CreateView, UpdateView, DeleteView, FormView
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.urls import reverse_lazy
 from .models import SmsProvider
 from .forms import SmsProviderForm, SendTestSmsForm
 from django.http import JsonResponse
-from django.views import View
-import json
+
+class IsAdminMixin(UserPassesTestMixin):
+    def test_func(self):
+        return self.request.user.is_staff
 
 class SmsProviderListView(ListView):
     model = SmsProvider
     template_name = 'providers/sms_provider_list.html'
     context_object_name = 'sms_providers'
 
-class IsAdminMixin(UserPassesTestMixin):
+class CheckBalanceView(IsAdminMixin, View):
+    def get(self, request, pk):
+        provider = SmsProvider.objects.get(pk=pk)
+        adapter = get_provider_adapter(provider)
+        balance = adapter.get_balance()
+        return JsonResponse(balance)
     def test_func(self):
         return self.request.user.is_staff
 
@@ -66,8 +73,6 @@ class SendTestSmsView(IsAdminMixin, FormView):
         context = super().get_context_data(**kwargs)
         provider = SmsProvider.objects.get(pk=self.kwargs['pk'])
         context['provider'] = provider
-        adapter = get_provider_adapter(provider)
-        context['balance'] = adapter.get_balance()
         return context
 
     def form_valid(self, form):

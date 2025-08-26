@@ -12,9 +12,10 @@
     <div>
       <h1 class="title">Send Test SMS</h1>
       <p class="subtitle">Send a test SMS using the provider: <strong>{{ provider.name }}</strong></p>
-      {% if balance %}
-        <p class="subtitle">Balance: <strong>{{ balance.balance }}</strong></p>
-      {% endif %}
+      <div class="flex items-center">
+        <button id="check-balance-btn" class="btn btn-secondary">Check Balance</button>
+        <p id="balance-display" class="ml-4"></p>
+      </div>
     </div>
     <div>
       <a class="btn" href="{% url 'sms_provider_list' %}">Back to list</a>
@@ -55,3 +56,24 @@
   </section>
 </div>
 {% endblock content %}
+<script>
+  document.getElementById('check-balance-btn').addEventListener('click', function() {
+    const providerId = {{ provider.pk }};
+    const balanceDisplay = document.getElementById('balance-display');
+    balanceDisplay.textContent = 'Checking...';
+
+    fetch(`{% url 'check_balance' 0 %}`.replace('0', providerId))
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          balanceDisplay.textContent = `Error: ${data.error}`;
+        } else {
+          balanceDisplay.textContent = `Balance: ${data.balance}`;
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        balanceDisplay.textContent = 'Error checking balance.';
+      });
+  });
+</script>
