@@ -56,6 +56,8 @@ class ToggleProviderStatusView(IsAdminMixin, View):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
+from .adapters import get_provider_adapter
+
 class SendTestSmsView(IsAdminMixin, FormView):
     form_class = SendTestSmsForm
     template_name = 'providers/send_test_sms.html'
@@ -70,10 +72,9 @@ class SendTestSmsView(IsAdminMixin, FormView):
         recipient = form.cleaned_data['recipient']
         message = form.cleaned_data['message']
 
-        # For now, just log the message to the console
-        print(f"Sending SMS to {recipient} from {provider.name}: {message}")
+        adapter = get_provider_adapter(provider)
+        result = adapter.send_sms(recipient, message)
 
-        return super().form_valid(form)
-
-    def get_success_url(self):
-        return self.request.path
+        context = self.get_context_data()
+        context['result'] = result
+        return self.render_to_response(context)

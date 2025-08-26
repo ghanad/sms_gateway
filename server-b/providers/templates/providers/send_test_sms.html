@@ -28,6 +28,26 @@
           <button type="submit" class="btn btn-primary">Send Test SMS</button>
         </div>
       </form>
+
+      {% if result %}
+      <div class="mt-4">
+        <h2 class="text-lg font-semibold">Result</h2>
+        {% if result.error %}
+          <div class="alert alert-danger">
+            <p><strong>Error:</strong> {{ result.error }}</p>
+          </div>
+        {% else %}
+          <div class="alert alert-success">
+            <p><strong>Success!</strong></p>
+          </div>
+          <pre class="mt-2 p-2 bg-gray-100 rounded">{{ result|json_script:"result-json" }}</pre>
+          <script>
+            const resultData = JSON.parse(document.getElementById('result-json').textContent);
+            document.querySelector('pre').textContent = JSON.stringify(resultData, null, 2);
+          </script>
+        {% endif %}
+      </div>
+      {% endif %}
     </div>
   </section>
 </div>
