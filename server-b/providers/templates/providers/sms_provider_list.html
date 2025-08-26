@@ -57,6 +57,7 @@
                   <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
                     <a href="{% url 'sms_provider_edit' sms_provider.pk %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Edit</a>
                     <a href="{% url 'sms_provider_delete' sms_provider.pk %}" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-100">Delete</a>
+                    <a href="{% url 'sms_provider_test' sms_provider.pk %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Send Test SMS</a>
                     {% if sms_provider.is_active %}
                       <a href="#" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-100 toggle-provider-status-btn" data-provider-id="{{ sms_provider.pk }}" data-is-active="false">Disable</a>
                     {% else %}

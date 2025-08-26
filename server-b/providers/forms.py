@@ -104,3 +104,14 @@ class SmsProviderForm(forms.ModelForm):
             if qs2.exists():
                 self.add_error('default_sender', 'This sender is already configured for this provider type.')
         return cleaned_data
+
+class SendTestSmsForm(forms.Form):
+    recipient = forms.CharField(
+        label="Recipient",
+        max_length=20,
+        widget=widgets.TextInput(attrs={'placeholder': 'e.g. +11234567890'})
+    )
+    message = forms.CharField(
+        label="Message",
+        widget=widgets.Textarea(attrs={'rows': 4, 'placeholder': 'Enter your message'})
+    )

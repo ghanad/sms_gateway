@@ -1,10 +1,10 @@
 from django.shortcuts import render
 from django.views.generic import ListView
-from django.views.generic.edit import CreateView, UpdateView, DeleteView
+from django.views.generic.edit import CreateView, UpdateView, DeleteView, FormView
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.urls import reverse_lazy
 from .models import SmsProvider
-from .forms import SmsProviderForm
+from .forms import SmsProviderForm, SendTestSmsForm
 from django.http import JsonResponse
 from django.views import View
 import json
@@ -55,3 +55,25 @@ class ToggleProviderStatusView(IsAdminMixin, View):
             return JsonResponse({'success': False, 'error': 'Provider not found'}, status=404)
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+class SendTestSmsView(IsAdminMixin, FormView):
+    form_class = SendTestSmsForm
+    template_name = 'providers/send_test_sms.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['provider'] = SmsProvider.objects.get(pk=self.kwargs['pk'])
+        return context
+
+    def form_valid(self, form):
+        provider = SmsProvider.objects.get(pk=self.kwargs['pk'])
+        recipient = form.cleaned_data['recipient']
+        message = form.cleaned_data['message']
+
+        # For now, just log the message to the console
+        print(f"Sending SMS to {recipient} from {provider.name}: {message}")
+
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return self.request.path

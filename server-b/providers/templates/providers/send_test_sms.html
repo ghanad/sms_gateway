@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock extra_head %}
+
+{% block content %}
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1 class="title">Send Test SMS</h1>
+      <p class="subtitle">Send a test SMS using the provider: <strong>{{ provider.name }}</strong></p>
+    </div>
+    <div>
+      <a class="btn" href="{% url 'sms_provider_list' %}">Back to list</a>
+    </div>
+  </div>
+
+  <!-- Card -->
+  <section class="card">
+    <div class="card__body">
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="panel__footer">
+          <button type="submit" class="btn btn-primary">Send Test SMS</button>
+        </div>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock content %}
