@@ -14,6 +14,10 @@ class BaseSmsProvider:
 
 class MagfaSmsProvider(BaseSmsProvider):
     def send_sms(self, recipient: str, message: str) -> dict:
+        headers = {
+            'Content-Type': 'application/json',
+            'accept': 'application/json',
+        }
         auth = None
         if self.provider.auth_type == 'basic':
             username = f"{self.provider.auth_config.get('username')}/{self.provider.auth_config.get('domain')}"
@@ -31,13 +35,16 @@ class MagfaSmsProvider(BaseSmsProvider):
         }
 
         try:
-            response = requests.post(self.provider.send_url, auth=auth, json=payload, timeout=10)
+            response = requests.post(self.provider.send_url, headers=headers, auth=auth, json=payload, timeout=10)
             response.raise_for_status()  # Raise an exception for bad status codes
             return response.json()
         except requests.exceptions.RequestException as e:
             return {'error': str(e)}
 
     def get_balance(self) -> dict:
+        headers = {
+            'accept': 'application/json',
+        }
         auth = None
         if self.provider.auth_type == 'basic':
             username = f"{self.provider.auth_config.get('username')}/{self.provider.auth_config.get('domain')}"
@@ -45,7 +52,7 @@ class MagfaSmsProvider(BaseSmsProvider):
             auth = (username, password)
 
         try:
-            response = requests.get(self.provider.balance_url, auth=auth, timeout=10)
+            response = requests.get(self.provider.balance_url, headers=headers, auth=auth, timeout=10)
             response.raise_for_status()  # Raise an exception for bad status codes
             return response.json()
         except requests.exceptions.RequestException as e:
