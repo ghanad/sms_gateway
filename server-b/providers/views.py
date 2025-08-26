@@ -22,8 +22,6 @@ class CheckBalanceView(IsAdminMixin, View):
         adapter = get_provider_adapter(provider)
         balance = adapter.get_balance()
         return JsonResponse(balance)
-    def test_func(self):
-        return self.request.user.is_staff
 
 from .models import ProviderType
 
