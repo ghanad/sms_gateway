@@ -1,20 +1,12 @@
-
 # server-b/providers/forms.py
 import json
 from django import forms
 from django.utils.text import slugify
 from .models import SmsProvider
-# ===> این import بسیار مهم است <===
 from . import widgets
 
-# ==============================================================================
-# ویجت نهایی: از ویجت سفارشی شما ارث‌بری می‌کند تا استایل‌ها حفظ شوند
-# ==============================================================================
-class PlaceholderJsonTextarea(widgets.Textarea):  # <--- تغییر کلیدی اینجاست
+class PlaceholderJsonTextarea(widgets.Textarea):
     """
-    این ویجت از ویجت پایه شما (widgets.Textarea) ارث‌بری می‌کند تا تمام
-    استایل‌های پیش‌فرض (مانند کلاس CSS) را به ارث ببرد.
-    همچنین منطق لازم برای نمایش placeholder در JSONField را پیاده‌سازی می‌کند.
     """
     def render(self, name, value, attrs=None, renderer=None):
         if value in ('{}', '[]'):
@@ -27,8 +19,10 @@ class SmsProviderForm(forms.ModelForm):
     class Meta:
         model = SmsProvider
         fields = '__all__'
+        help_texts = {
+            'priority': 'Higher means higher priority (0-100).'
+        }
         widgets = {
-            # این ویجت‌ها از قبل درست بودند
             'name': widgets.TextInput(attrs={'placeholder': 'e.g. Magfa 3000991'}),
             'slug': widgets.TextInput(attrs={'placeholder': 'e.g. magfa-3000991'}),
             'send_url': widgets.TextInput(attrs={'placeholder': 'https://sms.magfa.com/api/http/sms/v2/send'}),
@@ -36,7 +30,6 @@ class SmsProviderForm(forms.ModelForm):
             'default_sender': widgets.TextInput(attrs={'placeholder': 'e.g. 3000991'}),
             'auth_type': widgets.Select(attrs={'data-placeholder': 'Select auth type'}),
 
-            # ===> استفاده از ویجت نهایی و اصلاح‌شده <===
             'auth_config': PlaceholderJsonTextarea(attrs={
                 'rows': 4,
                 'placeholder': (
@@ -65,7 +58,7 @@ class SmsProviderForm(forms.ModelForm):
             'timeout_seconds': widgets.TextInput(attrs={'type': 'number', 'placeholder': '10'}),
             'priority': widgets.TextInput(attrs={
                 'type': 'number',
-                'placeholder': '0–100 (higher = higher priority)',
+                'placeholder': '0–100',
                 'min': 0, 'max': 100, 'step': 1,
             }),
             'is_active': widgets.CheckboxInput(attrs={'title': 'Enable/disable this provider'}),
@@ -77,7 +70,6 @@ class SmsProviderForm(forms.ModelForm):
             self.fields['provider_type'].required = False
 
 
-    # بقیه فرم بدون تغییر باقی می‌ماند
     def clean_slug(self):
         slug = self.cleaned_data.get('slug')
         if not slug:

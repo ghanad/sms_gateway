@@ -43,6 +43,11 @@ class SmsProviderUpdateView(IsAdminMixin, UpdateView):
     template_name = 'providers/smsprovider_form.html'
     success_url = reverse_lazy('sms_provider_list')
 
+    def form_valid(self, form):
+        if form.instance.query_params is None:
+            form.instance.query_params = {}
+        return super().form_valid(form)
+
 class SmsProviderDeleteView(IsAdminMixin, DeleteView):
     model = SmsProvider
     template_name = 'providers/smsprovider_confirm_delete.html'
