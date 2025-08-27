@@ -1,38 +1,36 @@
-version: '3.8'
-
 services:
-  #  server-a:
-  #    build:
-  #      context: ./server-a
-  #      dockerfile: Dockerfile
-  #    env_file:
-  #      - ./.env
-  #    ports:
-  #      - "${SERVER_A_PORT:-8000}:${SERVER_A_PORT:-8000}"
-  #    depends_on:
-  #      - redis
-  #      - rabbitmq
-  #    healthcheck:
-  #      test: ["CMD", "curl", "-f", "http://65.109.178.139:${SERVER_A_PORT:-8000}/healthz"]
-  #      interval: 10s
-  #      timeout: 5s
-  #      retries: 5
-  #
-  #  redis:
-  #    image: "redis:7-alpine"
-  #    ports:
-  #      - "6379:6379"
-  #    healthcheck:
-  #      test: ["CMD", "redis-cli", "ping"]
-  #      interval: 5s
-  #      timeout: 3s
-  #      retries: 5
+  server-a:
+    build:
+      context: ./server-a
+      dockerfile: Dockerfile
+    env_file:
+      - ./server-a/.env
+    ports:
+      - "8001:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  redis:
+    image: "redis:7-alpine"
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   rabbitmq:
     image: "rabbitmq:3-management-alpine"
     ports:
       - "5672:5672"
       - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
       interval: 10s
@@ -57,20 +55,9 @@ services:
       context: ./server-b
       dockerfile: Dockerfile
     env_file:
-      - ./.env
+      - ./server-b/.env
     ports:
       - "9000:9000"
     depends_on:
       - rabbitmq
       - postgres
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
-    ports:
-      - "5173:80"
-    depends_on:
-      - server-b

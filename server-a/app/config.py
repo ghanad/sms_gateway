@@ -1,3 +1,5 @@
+import os
+import yaml
 import json
 import hashlib
 from typing import Dict, List, Optional
@@ -11,9 +13,10 @@ def normalize_provider_key(name: str) -> str:
     return ''.join(ch for ch in name.lower() if ch.isalnum())
 
 class ClientConfig(BaseModel):
-    name: str
-    is_active: bool
-    daily_quota: int
+    user_id: int
+    username: str
+    is_active: bool = True
+    daily_quota: int = 1000
 
 class ProviderConfig(BaseModel):
     is_active: bool
@@ -22,72 +25,43 @@ class ProviderConfig(BaseModel):
     note: Optional[str] = None
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file='.env', extra='ignore')
-
-    SERVICE_NAME: str = "server-a"
-    SERVER_A_HOST: str = "0.0.0.0"
-    SERVER_A_PORT: int = 8000
-    REDIS_URL: str = "redis://redis:6379/0"
-    RABBITMQ_URL: str = "amqp://guest:guest@rabbitmq:5672/"
-    PROVIDER_GATE_ENABLED: bool = True
-    IDEMPOTENCY_TTL_SECONDS: int = 86400
-    QUOTA_PREFIX: str = "quota"
-    HEARTBEAT_INTERVAL_SECONDS: int = 60
-    # Default to empty JSON objects so tests and local usage don't require env vars
-    CLIENT_CONFIG: str = "{}"
-    PROVIDERS_CONFIG: str = "{}"
+    app_name: str = Field("SMS Gateway - Server A", env="APP_NAME")
+    log_level: str = Field("INFO", env="LOG_LEVEL")
+    redis_url: str = Field("redis://redis:6379/0", env="REDIS_URL")
+    rabbit_host: str = Field("rabbitmq", env="RABBITMQ_HOST")
+    rabbit_port: int = Field(5672, env="RABBITMQ_PORT")
+    rabbit_user: str = Field("guest", env="RABBITMQ_USER")
+    rabbit_pass: str = Field("guest", env="RABBITMQ_PASS")
+    outbound_sms_exchange: str = Field("sms_outbound_exchange", env="OUTBOUND_SMS_EXCHANGE")
+    outbound_sms_queue: str = Field("sms_outbound_queue", env="OUTBOUND_SMS_QUEUE")
+    config_path: str = Field("config/clients.yml", env="CONFIG_PATH")
+    idempotency_ttl_seconds: int = Field(86400, env="IDEMPOTENCY_TTL_SECONDS")
+    heartbeat_interval_seconds: int = Field(60, env="HEARTBEAT_INTERVAL_SECONDS")
 
     @computed_field
     @property
-    def clients(self) -> Dict[str, ClientConfig]:
-        try:
-            data = json.loads(self.CLIENT_CONFIG)
-            return {k: ClientConfig(**v) for k, v in data.items()}
-        except (json.JSONDecodeError, ValidationError) as e:
-            raise ValueError(f"Invalid CLIENT_CONFIG JSON: {e}") from e
+    def RABBITMQ_URL(self) -> str:
+        return f"amqp://{self.rabbit_user}:{self.rabbit_pass}@{self.rabbit_host}:{self.rabbit_port}/"
 
     @computed_field
     @property
     def providers(self) -> Dict[str, ProviderConfig]:
-        try:
-            data = json.loads(self.PROVIDERS_CONFIG)
-            return {k: ProviderConfig(**v) for k, v in data.items()}
-        except (json.JSONDecodeError, ValidationError) as e:
-            raise ValueError(f"Invalid PROVIDERS_CONFIG JSON: {e}") from e
-
-    @computed_field
-    @property
-    def client_config_fingerprint(self) -> str:
-        return hashlib.sha256(self.CLIENT_CONFIG.encode('utf-8')).hexdigest()
-
-    @computed_field
-    @property
-    def providers_config_fingerprint(self) -> str:
-        return hashlib.sha256(self.PROVIDERS_CONFIG.encode('utf-8')).hexdigest()
+        if not os.path.exists(self.config_path):
+            return {}
+        with open(self.config_path, "r") as f:
+            data = yaml.safe_load(f).get("providers", {})
+        return {k: ProviderConfig(**v) for k, v in data.items()}
 
     @computed_field
     @property
     def provider_alias_map(self) -> Dict[str, str]:
-        alias_map: Dict[str, str] = {}
-        for provider_name, provider_config in self.providers.items():
-            canonical_key = normalize_provider_key(provider_name)
-            if canonical_key in alias_map and alias_map[canonical_key] != provider_name:
-                raise ValueError(
-                    f"Alias collision: '{canonical_key}' already maps to '{alias_map[canonical_key]}', cannot map to '{provider_name}'"
-                )
-            alias_map[canonical_key] = provider_name
-
-            if provider_config.aliases:
-                for alias in provider_config.aliases:
-                    alias_key = normalize_provider_key(alias)
-                    if alias_key in alias_map and alias_map[alias_key] != provider_name:
-                        raise ValueError(
-                            f"Alias collision: '{alias.lower()}' already maps to '{alias_map[alias_key]}', cannot map to '{provider_name}'"
-                        )
-                    alias_map[alias_key] = provider_name
+        alias_map = {}
+        for name, config in self.providers.items():
+            if config.aliases:
+                for alias in config.aliases:
+                    alias_map[normalize_provider_key(alias)] = name
         return alias_map
 
-@lru_cache
 def get_settings() -> Settings:
     return Settings()
 
@@ -95,10 +69,9 @@ def get_settings() -> Settings:
 try:
     settings = get_settings()
     # Access computed fields to trigger validation
-    _ = settings.clients
     _ = settings.providers
     _ = settings.provider_alias_map
-except ValueError as e:
+except (ValidationError, FileNotFoundError) as e:
     print(f"Configuration Error: {e}")
     import sys
     sys.exit(1)

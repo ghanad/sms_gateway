@@ -15,7 +15,7 @@ async def get_redis_client() -> Redis:
     # In a real application, this would be managed by a connection pool
     # and injected via FastAPI's dependency injection.
     # For simplicity, we'll create a new client for now.
-    return Redis.from_url(settings.REDIS_URL)
+    return Redis.from_url(settings.redis_url)
 
 async def idempotency_middleware(request: Request, call_next):
     idempotency_key: Optional[str] = request.headers.get("Idempotency-Key")

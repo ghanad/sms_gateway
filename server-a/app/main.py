@@ -29,6 +29,7 @@ from app.idempotency import idempotency_middleware, get_redis_client
 from app.provider_gate import provider_gate
 from app.quota import enforce_daily_quota
 from app.rabbit import publish_sms_message, get_rabbitmq_connection, RABBITMQ_QUEUE_NAME, RABBITMQ_EXCHANGE_NAME
+from app.consumers import consume_config_events
 from app.heartbeat import start_heartbeat_task, HEARTBEAT_QUEUE_NAME, HEARTBEAT_EXCHANGE_NAME
 
 # Setup logging as early as possible
@@ -62,12 +63,12 @@ async def lifespan(app: FastAPI):
         rabbitmq_connection = await get_rabbitmq_connection()
         rabbitmq_channel = await rabbitmq_connection.channel()
         await rabbitmq_channel.declare_exchange(RABBITMQ_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True)
-        await rabbitmq_channel.declare_queue(RABBITMQ_QUEUE_NAME, durable=True)
-        await rabbitmq_channel.bind(RABBITMQ_QUEUE_NAME, RABBITMQ_EXCHANGE_NAME, routing_key=RABBITMQ_QUEUE_NAME)
+        queue = await rabbitmq_channel.declare_queue(RABBITMQ_QUEUE_NAME, durable=True)
+        await queue.bind(RABBITMQ_EXCHANGE_NAME, routing_key=RABBITMQ_QUEUE_NAME)
         # Declare heartbeat queue as well
         await rabbitmq_channel.declare_exchange(HEARTBEAT_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True)
-        await rabbitmq_channel.declare_queue(HEARTBEAT_QUEUE_NAME, durable=True)
-        await rabbitmq_channel.bind(HEARTBEAT_QUEUE_NAME, HEARTBEAT_EXCHANGE_NAME, routing_key=HEARTBEAT_QUEUE_NAME)
+        heartbeat_queue = await rabbitmq_channel.declare_queue(HEARTBEAT_QUEUE_NAME, durable=True)
+        await heartbeat_queue.bind(HEARTBEAT_EXCHANGE_NAME, routing_key=HEARTBEAT_QUEUE_NAME)
 
         logger.info("RabbitMQ connection and channel initialized.")
     except Exception as e:
@@ -77,6 +78,8 @@ async def lifespan(app: FastAPI):
     # Start heartbeat task
     asyncio.create_task(start_heartbeat_task())
     logger.info("Heartbeat task started.")
+    asyncio.create_task(consume_config_events())
+    logger.info("Configuration event consumer started.")
 
     yield
 
@@ -175,6 +178,7 @@ async def send_sms(
 
         # 7. Publish envelope to RabbitMQ
         await publish_sms_message(
+            user_id=client.user_id,
             client_key=client.api_key,
             to=sms_request.to,
             text=sms_request.text,

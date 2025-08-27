@@ -26,6 +26,7 @@ async def get_rabbitmq_connection() -> aio_pika.Connection:
         raise
 
 async def publish_sms_message(
+    user_id: int,
     client_key: str,
     to: str,
     text: str,
@@ -47,16 +48,13 @@ async def publish_sms_message(
 
             envelope = {
                 "tracking_id": str(tracking_id),
+                "user_id": user_id,
                 "client_key": client_key,
                 "to": to,
                 "text": text,
                 "ttl_seconds": ttl_seconds,
                 "providers_original": providers_original,
                 "providers_effective": providers_effective,
-                "config_fingerprint": {
-                    "clients": settings.client_config_fingerprint,
-                    "providers": settings.providers_config_fingerprint,
-                },
                 "created_at": datetime.utcnow().isoformat(),
             }
 

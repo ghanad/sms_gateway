@@ -2,10 +2,10 @@ from fastapi import Header, HTTPException, Request, status
 from typing import Annotated
 import logging
 
-from app.config import get_settings, ClientConfig
+from app.config import ClientConfig
+from app.cache import CLIENT_CONFIG_CACHE
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 class ClientContext(ClientConfig):
     api_key: str
@@ -21,7 +21,7 @@ async def get_client_context(
             detail={"error_code": "UNAUTHORIZED", "message": "API-Key header missing"}
         )
 
-    client_config = settings.clients.get(api_key)
+    client_config = CLIENT_CONFIG_CACHE.get(api_key)
 
     if not client_config:
         logger.warning("Authentication failed: Invalid API key.", extra={"client_api_key": api_key})
@@ -39,5 +39,5 @@ async def get_client_context(
 
     client_context = ClientContext(api_key=api_key, **client_config.model_dump())
     request.state.client = client_context
-    logger.info("Client authenticated successfully.", extra={"client_api_key": api_key, "client_name": client_context.name})
+    logger.info("Client authenticated successfully.", extra={"client_api_key": api_key, "client_name": client_context.username})
     return client_context

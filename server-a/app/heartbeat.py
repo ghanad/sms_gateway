@@ -23,17 +23,15 @@ async def send_heartbeat():
     try:
         connection = await aio_pika.connect_robust(settings.RABBITMQ_URL)
         async with connection.channel() as channel:
-            await channel.declare_exchange(HEARTBEAT_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True)
+            exchange = await channel.declare_exchange(HEARTBEAT_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True)
+            
             queue = await channel.declare_queue(HEARTBEAT_QUEUE_NAME, durable=True)
-            await queue.bind(HEARTBEAT_EXCHANGE_NAME, routing_key=HEARTBEAT_QUEUE_NAME)
+            
+            await queue.bind(exchange, routing_key=HEARTBEAT_QUEUE_NAME)
 
             heartbeat_payload = {
-                "service": settings.SERVICE_NAME,
+                "service": settings.app_name,
                 "timestamp": datetime.utcnow().isoformat(),
-                "config_fingerprint": {
-                    "clients": settings.client_config_fingerprint,
-                    "providers": settings.providers_config_fingerprint,
-                },
             }
 
             message_body = json.dumps(heartbeat_payload).encode('utf-8')
@@ -43,14 +41,13 @@ async def send_heartbeat():
                 delivery_mode=DeliveryMode.PERSISTENT
             )
 
-            await channel.publish(
+            await exchange.publish(
                 message,
-                exchange=HEARTBEAT_EXCHANGE_NAME,
                 routing_key=HEARTBEAT_QUEUE_NAME
             )
-            logger.debug("Heartbeat sent successfully.", extra={"service": settings.SERVICE_NAME})
+            logger.debug("Heartbeat sent successfully.", extra={"service": settings.app_name})
     except Exception as e:
-        logger.error(f"Failed to send heartbeat to RabbitMQ: {e}", extra={"service": settings.SERVICE_NAME})
+        logger.error(f"Failed to send heartbeat to RabbitMQ: {e}")
     finally:
         if connection:
             await connection.close()
@@ -60,12 +57,11 @@ async def start_heartbeat_task():
     Starts a background task to send heartbeats periodically.
     Includes retry logic with backoff.
     """
-    logger.info(f"Starting heartbeat task with interval: {settings.HEARTBEAT_INTERVAL_SECONDS} seconds.")
+    logger.info(f"Starting heartbeat task with interval: {settings.heartbeat_interval_seconds} seconds.")
     while True:
         try:
             await send_heartbeat()
         except Exception as e:
             logger.error(f"Heartbeat task encountered an error: {e}. Retrying after backoff.")
-            # Implement a simple backoff strategy
-            await asyncio.sleep(min(settings.HEARTBEAT_INTERVAL_SECONDS * 2, 300)) # Max 5 min backoff
-        await asyncio.sleep(settings.HEARTBEAT_INTERVAL_SECONDS)
+            await asyncio.sleep(min(settings.heartbeat_interval_seconds * 2, 300))
+        await asyncio.sleep(settings.heartbeat_interval_seconds)
