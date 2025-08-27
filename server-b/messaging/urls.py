@@ -1,8 +1,9 @@
 from django.urls import path
-from .views import UserMessageListView
+from .views import UserMessageListView, AdminMessageListView
 
 app_name = 'messaging'
 
 urlpatterns = [
     path('my-messages/', UserMessageListView.as_view(), name='my_messages_list'),
+    path('admin-messages/', AdminMessageListView.as_view(), name='admin_messages_list'),
 ]

@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+    <style>
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 1rem;
+            gap: 0.5rem;
+        }
+        .pagination .page-item {
+            display: inline-block;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            color: var(--text);
+            background-color: #fff;
+            border: 1px solid var(--border);
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+        .pagination .page-item.active {
+            background-color: var(--ring);
+            color: #fff;
+            border-color: var(--ring);
+        }
+        .pagination .page-item.disabled {
+            color: var(--muted);
+            pointer-events: none;
+            border-color: var(--border);
+        }
+        .pagination .page-item:hover {
+            background-color: var(--bg2);
+        }
+    </style>
+{% endblock extra_head %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <div>
+            <h1 class="title">All Messages</h1>
+            <p class="subtitle">Here are all the messages from all users.</p>
+        </div>
+    </div>
+
+    <!-- Card -->
+    <section class="card">
+        <div class="card__body">
+            <!-- Table -->
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Recipient</th>
+                            <th>Text</th>
+                            <th>Status</th>
+                            <th>Provider</th>
+                            <th>Date Sent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for message in messages %}
+                        <tr>
+                            <td><strong>{{ message.user.username }}</strong></td>
+                            <td><strong>{{ message.recipient }}</strong></td>
+                            <td>{{ message.text|truncatechars:50 }}</td>
+                            <td><span class="pill pill--on">{{ message.get_status_display }}</span></td>
+                            <td>{{ message.provider.name }}</td>
+                            <td>{{ message.sent_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6">No messages found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    {% if is_paginated %}
+    <nav class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="page-item">&laquo;</a>
+        {% else %}
+            <a href="#" class="page-item disabled">&laquo;</a>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+                <a href="?page={{ num }}" class="page-item active">{{ num }}</a>
+            {% else %}
+                <a href="?page={{ num }}" class="page-item">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="page-item">&raquo;</a>
+        {% else %}
+            <a href="#" class="page-item disabled">&raquo;</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

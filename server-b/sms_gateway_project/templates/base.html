@@ -53,6 +53,7 @@
         <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'messaging:my_messages_list' %}">My Messages</a>
         {% endif %}
         {% if user.is_staff %}
+        <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'messaging:admin_messages_list' %}">Admin Messages</a>
         <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'user_list' %}">Users</a>
         {% endif %}
         {% if user.is_authenticated %}
