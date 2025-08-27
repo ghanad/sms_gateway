@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'user_management',
     'core',
     'providers',
+    'messaging',
 ]
 
 AUTHENTICATION_BACKENDS = [
