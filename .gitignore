@@ -36,3 +36,8 @@ output.json
 # Django
 *.sqlite3
 media/
+
+source_code.json
+
+.gemini/
+gha-creds-*.json

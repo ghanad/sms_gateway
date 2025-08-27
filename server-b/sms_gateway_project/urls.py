@@ -21,4 +21,5 @@ urlpatterns = [
     path('accounts/', include('allauth.urls')),
     path('management/', include('user_management.urls')),
     path('providers/', include('providers.urls')),
+    path('messages/', include('messaging.urls')),
 ]
