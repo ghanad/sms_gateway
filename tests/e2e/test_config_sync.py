@@ -8,9 +8,17 @@ import requests
 
 @pytest.fixture(scope="module", autouse=True)
 def compose_environment():
-    """Spin up the docker compose environment for the test module."""
+    """Create env files, start services, and ensure providers are loaded."""
+    # Build per-service env files from the example configuration
+    env_setup = (
+        "sed -n '1,/^# Server B/{/^#/!p}' .env.example > server-a/.env && "
+        "{ sed -n '/^# Server B/,/^# Frontend/{/^#/!p}' .env.example; "
+        "grep -E '^(CLIENT_CONFIG|PROVIDERS_CONFIG)=' .env.example; } > server-b/.env"
+    )
+    subprocess.run(["bash", "-c", env_setup], check=True)
+
     subprocess.run(["docker", "compose", "up", "-d", "--build"], check=True)
-    # Wait for services to come up
+    # Wait for server-a to become ready
     start = time.time()
     while time.time() - start < 60:
         try:
@@ -22,6 +30,31 @@ def compose_environment():
         time.sleep(1)
     else:
         raise RuntimeError("Services did not become ready in time")
+
+    # Ensure the provider configuration has been loaded into server-b
+    start = time.time()
+    check_cmd = [
+        "docker",
+        "compose",
+        "exec",
+        "-T",
+        "server-b",
+        "python",
+        "manage.py",
+        "shell",
+        "-c",
+        (
+            "from providers.models import SmsProvider; import sys; "
+            "sys.exit(0 if SmsProvider.objects.filter(name='ProviderA').exists() else 1)"
+        ),
+    ]
+    while time.time() - start < 60:
+        if subprocess.run(check_cmd).returncode == 0:
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError("ProviderA was not initialized in time")
+
     yield
     subprocess.run(["docker", "compose", "down", "-v"], check=True)
 
