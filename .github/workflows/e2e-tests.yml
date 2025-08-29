@@ -1,0 +1,34 @@
+name: E2E Tests
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: pip install pytest requests
+
+      - name: Start services
+        run: docker-compose up -d --build
+
+      - name: Wait for services to be healthy
+        run: sleep 30
+
+      - name: Run E2E tests
+        run: pytest tests/e2e/
+
+      - name: Stop services
+        if: always()
+        run: docker-compose down -v
