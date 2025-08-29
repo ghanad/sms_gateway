@@ -1,9 +1,8 @@
 import json
-import threading
-import time
 from datetime import datetime
 
 import pika
+from celery import shared_task
 from django.conf import settings
 from django.contrib.auth.models import User
 
@@ -17,7 +16,8 @@ def _get_connection():
     )
 
 
-def _publish_full_state():
+@shared_task
+def publish_full_state():
     connection = _get_connection()
     channel = connection.channel()
     channel.exchange_declare(
@@ -65,17 +65,3 @@ def _publish_full_state():
         ),
     )
     connection.close()
-
-
-def start_periodic_broadcast(interval: int = 60) -> None:
-    def _worker() -> None:
-        while True:
-            try:
-                _publish_full_state()
-            except Exception:  # pragma: no cover - log and continue
-                import logging
-                logging.exception("Failed to publish configuration state")
-            time.sleep(interval)
-
-    thread = threading.Thread(target=_worker, daemon=True)
-    thread.start()

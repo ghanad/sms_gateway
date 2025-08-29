@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+from datetime import timedelta
 import dj_database_url
 from dotenv import load_dotenv
 
@@ -41,6 +42,7 @@ INSTALLED_APPS = [
     'core',
     'providers',
     'messaging',
+    'django_celery_beat',
 ]
 
 AUTHENTICATION_BACKENDS = [
@@ -150,3 +152,17 @@ RABBITMQ_USER = os.environ.get('RABBITMQ_USER', 'guest')
 RABBITMQ_PASS = os.environ.get('RABBITMQ_PASS', 'guest')
 CONFIG_EVENTS_EXCHANGE = os.environ.get('CONFIG_EVENTS_EXCHANGE', 'config_events_exchange')
 CONFIG_STATE_EXCHANGE = os.environ.get('CONFIG_STATE_EXCHANGE', 'config_state_exchange')
+
+CELERY_BROKER_URL = os.environ.get(
+    'CELERY_BROKER_URL',
+    f'amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}//',
+)
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_IMPORTS = ('core.state_broadcaster',)
+CELERY_BEAT_SCHEDULE = {
+    'publish-full-state': {
+        'task': 'core.state_broadcaster.publish_full_state',
+        'schedule': timedelta(seconds=60),
+    }
+}

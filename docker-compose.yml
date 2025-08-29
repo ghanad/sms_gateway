@@ -54,6 +54,7 @@ services:
     build:
       context: ./server-b
       dockerfile: Dockerfile
+    image: sms_gateway_server_b
     env_file:
       - ./server-b/.env
     ports:
@@ -61,3 +62,22 @@ services:
     depends_on:
       - rabbitmq
       - postgres
+
+  celery-worker-b:
+    image: sms_gateway_server_b
+    env_file:
+      - ./server-b/.env
+    command: celery -A sms_gateway_project worker -l info
+    depends_on:
+      - rabbitmq
+      - postgres
+
+  celery-beat-b:
+    image: sms_gateway_server_b
+    env_file:
+      - ./server-b/.env
+    command: celery -A sms_gateway_project beat -l info
+    depends_on:
+      - rabbitmq
+      - postgres
+
