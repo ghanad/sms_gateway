@@ -39,7 +39,7 @@
                                 <td><strong>{{ user.username }}</strong></td>
                                 <td>{{ user.email }}</td>
                                 <td><span class="pill {% if user.is_staff %}pill--on{% else %}pill--off{% endif %}">{% if user.is_staff %}Yes{% else %}No{% endif %}</span></td>
-                                <td><span class="pill {% if user.is_active %}pill--on{% else %}pill--off{% endif %}">{% if user.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+                                <td><span id="status-pill-{{ user.pk }}" class="pill {% if user.is_active %}pill--on{% else %}pill--off{% endif %}">{% if user.is_active %}Active{% else %}Inactive{% endif %}</span></td>
                                 <td class="text-right">
                                     <details class="relative ml-auto">
                                         <summary class="btn btn-ghost h-8 w-24 flex items-center justify-center">Actions</summary>
