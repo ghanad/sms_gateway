@@ -1,9 +1,10 @@
 import pytest
 from fastapi import HTTPException, Request, status
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from app.provider_gate import ProviderGate
 from app.config import Settings, ProviderConfig
+from app.cache import PROVIDER_CONFIG_CACHE, PROVIDER_ALIAS_MAP_CACHE, build_provider_alias_map
 
 @pytest.fixture
 def mock_providers_config() -> dict:
@@ -22,22 +23,15 @@ def provider_gate_instance(mock_providers_config: dict) -> ProviderGate:
     Creates a ProviderGate instance with a mocked configuration.
     This fixture allows tests to modify the provider config on the fly.
     """
+    PROVIDER_CONFIG_CACHE.clear()
+    PROVIDER_CONFIG_CACHE.update(mock_providers_config)
+    PROVIDER_ALIAS_MAP_CACHE.clear()
+    PROVIDER_ALIAS_MAP_CACHE.update(build_provider_alias_map(mock_providers_config))
+
     with patch('app.config.get_settings') as mock_get_settings:
         mock_settings = MagicMock(spec=Settings)
         mock_settings.PROVIDER_GATE_ENABLED = True
-        mock_settings.providers = mock_providers_config
-
-        alias_map = {}
-        for name, config in mock_providers_config.items():
-            alias_map[name.lower()] = name
-            if config.aliases:
-                for alias in config.aliases:
-                    alias_map[alias.lower()] = name
-        
-        type(mock_settings).provider_alias_map = PropertyMock(return_value=alias_map)
-
         mock_get_settings.return_value = mock_settings
-        
         gate = ProviderGate()
         return gate
 
@@ -131,16 +125,9 @@ def test_provider_alias_mapping(provider_gate_instance: ProviderGate, mock_reque
     assert result_alias == ["ProviderD"]
 
 def test_provider_alias_collision_detection():
-    """Test that duplicate aliases (case-insensitive) for different providers raise an error."""
+    """Duplicate aliases should raise an error when building the map."""
     with pytest.raises(ValueError, match="Alias collision: 'alias-a' already maps to 'provider-a', cannot map to 'provider-b'"):
-        settings = Settings(
-            CLIENT_CONFIG='{}',
-            PROVIDERS_CONFIG='''
-            {
-                "provider-a": {"is_active": true, "is_operational": true, "aliases": ["alias-a"]},
-                "provider-b": {"is_active": true, "is_operational": true, "aliases": ["ALIAS-A"]}
-            }
-            '''
-        )
-        # Trigger the validation by accessing the computed field
-        _ = settings.provider_alias_map
+        build_provider_alias_map({
+            'provider-a': ProviderConfig(is_active=True, is_operational=True, aliases=['alias-a']),
+            'provider-b': ProviderConfig(is_active=True, is_operational=True, aliases=['ALIAS-A'])
+        })

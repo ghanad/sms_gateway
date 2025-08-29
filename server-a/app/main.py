@@ -29,7 +29,8 @@ from app.idempotency import idempotency_middleware, get_redis_client
 from app.provider_gate import provider_gate
 from app.quota import enforce_daily_quota
 from app.rabbit import publish_sms_message, get_rabbitmq_connection, RABBITMQ_QUEUE_NAME, RABBITMQ_EXCHANGE_NAME
-from app.consumers import consume_config_events
+from app.consumers import consume_config_state
+from app.cache import load_state_from_file
 from app.heartbeat import start_heartbeat_task, HEARTBEAT_QUEUE_NAME, HEARTBEAT_EXCHANGE_NAME
 
 # Setup logging as early as possible
@@ -78,8 +79,15 @@ async def lifespan(app: FastAPI):
     # Start heartbeat task
     asyncio.create_task(start_heartbeat_task())
     logger.info("Heartbeat task started.")
-    asyncio.create_task(consume_config_events())
-    logger.info("Configuration event consumer started.")
+
+    # Warm caches from local file before starting consumer
+    if load_state_from_file():
+        logger.info("Configuration cache warmed from local file.")
+    else:
+        logger.warning("No valid configuration cache found. Waiting for state broadcast.")
+
+    asyncio.create_task(consume_config_state())
+    logger.info("Configuration state consumer started.")
 
     yield
 

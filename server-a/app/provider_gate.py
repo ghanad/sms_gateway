@@ -3,6 +3,7 @@ from typing import List, Optional, Tuple
 from fastapi import HTTPException, status, Request
 
 from app import config
+from app.cache import PROVIDER_ALIAS_MAP_CACHE, PROVIDER_CONFIG_CACHE
 from app.config import ProviderConfig
 from app.metrics import (
     SMS_REQUEST_REJECTED_UNKNOWN_PROVIDER_TOTAL,
@@ -15,8 +16,9 @@ logger = logging.getLogger(__name__)
 class ProviderGate:
     def __init__(self):
         self.settings = config.get_settings()
-        self.provider_alias_map = self.settings.provider_alias_map
-        self.providers_config = self.settings.providers
+        # Reference global caches so they stay updated when refreshed
+        self.provider_alias_map = PROVIDER_ALIAS_MAP_CACHE
+        self.providers_config = PROVIDER_CONFIG_CACHE
 
     def _get_canonical_provider_name(self, provider_name: str) -> Optional[str]:
         """Returns the canonical provider name using normalized keys with a lowercase fallback."""

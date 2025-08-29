@@ -23,12 +23,7 @@ def mock_settings():
         IDEMPOTENCY_TTL_SECONDS=86400,
         QUOTA_PREFIX="test-quota",
         HEARTBEAT_INTERVAL_SECONDS=60,
-        CLIENT_CONFIG='{"client_key_1":{"name":"Test Client 1","is_active":true,"daily_quota":10}, "client_key_unlimited":{"name":"Unlimited Client","is_active":true,"daily_quota":0}}',
-        PROVIDERS_CONFIG='{"ProviderA":{"is_active":true,"is_operational":true}}'
     )
-    _ = settings.clients
-    _ = settings.providers
-    _ = settings.provider_alias_map
     return settings
 
 # Mock Redis client
@@ -50,12 +45,12 @@ def test_app_quota(mock_settings, mock_redis_client):
 
         # Dummy auth dependency to simulate getting a client context
         async def get_test_client_context(request: Request) -> ClientContext:
-            client = ClientContext(api_key="client_key_1", name="Test Client 1", is_active=True, daily_quota=10)
+            client = ClientContext(api_key="client_key_1", user_id=1, username="Test Client 1", is_active=True, daily_quota=10)
             request.state.client = client # Attach to request state
             return client
 
         async def get_unlimited_client_context(request: Request) -> ClientContext:
-            client = ClientContext(api_key="client_key_unlimited", name="Unlimited Client", is_active=True, daily_quota=0)
+            client = ClientContext(api_key="client_key_unlimited", user_id=2, username="Unlimited Client", is_active=True, daily_quota=0)
             request.state.client = client
             return client
 
@@ -159,7 +154,7 @@ def test_app_rejection(mock_settings, mock_redis_client):
 
     # Mock client context dependency
     async def get_test_client_context(request: Request) -> ClientContext:
-        client = ClientContext(api_key="client_key_1", name="Test Client 1", is_active=True, daily_quota=10)
+        client = ClientContext(api_key="client_key_1", user_id=1, username="Test Client 1", is_active=True, daily_quota=10)
         request.state.client = client
         return client
 
