@@ -157,7 +157,7 @@ CELERY_BROKER_URL = os.environ.get(
     'CELERY_BROKER_URL',
     f'amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}//',
 )
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'rpc://')
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_IMPORTS = ('core.state_broadcaster',)
 CELERY_BEAT_SCHEDULE = {
