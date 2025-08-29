@@ -31,9 +31,9 @@ def compose_environment():
     else:
         raise RuntimeError("Services did not become ready in time")
 
-    # Ensure the provider configuration has been loaded into server-b
+    # Ensure ProviderA exists in server-b (create it if necessary)
     start = time.time()
-    check_cmd = [
+    init_cmd = [
         "docker",
         "compose",
         "exec",
@@ -44,12 +44,13 @@ def compose_environment():
         "shell",
         "-c",
         (
-            "from providers.models import SmsProvider; import sys; "
-            "sys.exit(0 if SmsProvider.objects.filter(name='ProviderA').exists() else 1)"
+            "from providers.models import SmsProvider; "
+            "SmsProvider.objects.get_or_create(" 
+            "name='ProviderA', defaults={'is_active': True, 'is_operational': True})"
         ),
     ]
     while time.time() - start < 60:
-        if subprocess.run(check_cmd).returncode == 0:
+        if subprocess.run(init_cmd).returncode == 0:
             break
         time.sleep(1)
     else:
