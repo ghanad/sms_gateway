@@ -4,7 +4,7 @@ from fastapi import Response
 from typing import Dict, Any
 import logging
 
-from app.config import get_settings
+from app.cache import PROVIDER_CONFIG_CACHE
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +78,8 @@ SMS_SEND_REQUEST_ERROR_TOTAL = Counter(
 )
 
 def initialize_provider_metrics():
-    """Initializes provider-specific gauges based on current configuration."""
-    settings = get_settings()
-    providers_config = settings.providers
+    """Initializes provider-specific gauges based on current cache state."""
+    providers_config = PROVIDER_CONFIG_CACHE
     SMS_PROVIDERS_CONFIG_TOTAL.set(len(providers_config))
 
     for provider_name, config in providers_config.items():

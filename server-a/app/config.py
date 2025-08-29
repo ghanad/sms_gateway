@@ -1,11 +1,6 @@
-import os
-import yaml
-import json
-import hashlib
 from typing import Dict, List, Optional
-from pydantic import Field, BaseModel, ValidationError, computed_field
+from pydantic import Field, BaseModel, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from functools import lru_cache
 
 
 def normalize_provider_key(name: str) -> str:
@@ -25,6 +20,8 @@ class ProviderConfig(BaseModel):
     note: Optional[str] = None
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(extra="allow")
+
     app_name: str = Field("SMS Gateway - Server A", env="APP_NAME")
     log_level: str = Field("INFO", env="LOG_LEVEL")
     redis_url: str = Field("redis://redis:6379/0", env="REDIS_URL")
@@ -34,44 +31,15 @@ class Settings(BaseSettings):
     rabbit_pass: str = Field("guest", env="RABBITMQ_PASS")
     outbound_sms_exchange: str = Field("sms_outbound_exchange", env="OUTBOUND_SMS_EXCHANGE")
     outbound_sms_queue: str = Field("sms_outbound_queue", env="OUTBOUND_SMS_QUEUE")
-    config_path: str = Field("config/clients.yml", env="CONFIG_PATH")
     idempotency_ttl_seconds: int = Field(86400, env="IDEMPOTENCY_TTL_SECONDS")
     heartbeat_interval_seconds: int = Field(60, env="HEARTBEAT_INTERVAL_SECONDS")
+    PROVIDER_GATE_ENABLED: bool = Field(True, env="PROVIDER_GATE_ENABLED")
+    QUOTA_PREFIX: str = Field("quota", env="QUOTA_PREFIX")
 
     @computed_field
     @property
     def RABBITMQ_URL(self) -> str:
         return f"amqp://{self.rabbit_user}:{self.rabbit_pass}@{self.rabbit_host}:{self.rabbit_port}/"
 
-    @computed_field
-    @property
-    def providers(self) -> Dict[str, ProviderConfig]:
-        if not os.path.exists(self.config_path):
-            return {}
-        with open(self.config_path, "r") as f:
-            data = yaml.safe_load(f).get("providers", {})
-        return {k: ProviderConfig(**v) for k, v in data.items()}
-
-    @computed_field
-    @property
-    def provider_alias_map(self) -> Dict[str, str]:
-        alias_map = {}
-        for name, config in self.providers.items():
-            if config.aliases:
-                for alias in config.aliases:
-                    alias_map[normalize_provider_key(alias)] = name
-        return alias_map
-
 def get_settings() -> Settings:
     return Settings()
-
-# Validate settings on startup
-try:
-    settings = get_settings()
-    # Access computed fields to trigger validation
-    _ = settings.providers
-    _ = settings.provider_alias_map
-except (ValidationError, FileNotFoundError) as e:
-    print(f"Configuration Error: {e}")
-    import sys
-    sys.exit(1)
