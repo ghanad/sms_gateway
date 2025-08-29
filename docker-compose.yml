@@ -62,12 +62,15 @@ services:
     depends_on:
       - rabbitmq
       - postgres
+    command: >-
+      sh -c "python manage.py migrate && gunicorn --bind 0.0.0.0:9000 sms_gateway_project.wsgi:application"
 
   celery-worker-b:
     image: sms_gateway_server_b
     env_file:
       - ./server-b/.env
-    command: celery -A sms_gateway_project worker -l info
+    command: >-
+      sh -c "python manage.py migrate && celery -A sms_gateway_project worker -l info"
     depends_on:
       - rabbitmq
       - postgres
@@ -76,7 +79,8 @@ services:
     image: sms_gateway_server_b
     env_file:
       - ./server-b/.env
-    command: celery -A sms_gateway_project beat -l info
+    command: >-
+      sh -c "python manage.py migrate && celery -A sms_gateway_project beat -l info"
     depends_on:
       - rabbitmq
       - postgres
