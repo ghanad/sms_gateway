@@ -28,12 +28,7 @@ def mock_settings():
         IDEMPOTENCY_TTL_SECONDS=10, # Short TTL for testing
         QUOTA_PREFIX="quota",
         HEARTBEAT_INTERVAL_SECONDS=60,
-        CLIENT_CONFIG='{"client_key_1":{"name":"Test Client 1","is_active":true,"daily_quota":100}}',
-        PROVIDERS_CONFIG='{"ProviderA":{"is_active":true,"is_operational":true}}'
     )
-    _ = settings.clients
-    _ = settings.providers
-    _ = settings.provider_alias_map
     return settings
 
 # Mock Redis client

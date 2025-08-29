@@ -9,3 +9,5 @@ psycopg2-binary
 requests
 whitenoise
 gunicorn
+celery
+django-celery-beat

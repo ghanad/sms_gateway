@@ -28,25 +28,19 @@ def mock_settings():
         IDEMPOTENCY_TTL_SECONDS=10,
         QUOTA_PREFIX="test-quota",
         HEARTBEAT_INTERVAL_SECONDS=60,
-        CLIENT_CONFIG='{"client_key_1":{"name":"Test Client 1","is_active":true,"daily_quota":100}}',
-        PROVIDERS_CONFIG='{"ProviderA":{"is_active":true,"is_operational":true}}'
     )
-    _ = settings.clients
-    _ = settings.providers
-    _ = settings.provider_alias_map
     return settings
 
 # Mock dependencies for the send_sms endpoint
 @pytest.fixture
 def mock_dependencies(mock_settings):
     with patch('app.config.get_settings', return_value=mock_settings), \
-         patch('app.auth.get_settings', return_value=mock_settings), \
          patch('app.idempotency.settings', mock_settings), \
          patch('app.quota.get_settings', return_value=mock_settings), \
          patch('app.rabbit.get_settings', return_value=mock_settings), \
          patch('app.heartbeat.get_settings', return_value=mock_settings):
 
-        mock_get_client_context = AsyncMock(return_value=ClientContext(api_key="client_key_1", name="Test Client 1", is_active=True, daily_quota=100))
+        mock_get_client_context = AsyncMock(return_value=ClientContext(api_key="client_key_1", user_id=1, username="Test Client 1", is_active=True, daily_quota=100))
         mock_provider_gate_process_providers = MagicMock(return_value=["ProviderA"])
         mock_enforce_daily_quota = AsyncMock()
         mock_publish_sms_message = AsyncMock()

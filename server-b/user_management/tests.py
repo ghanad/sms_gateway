@@ -13,8 +13,8 @@ class UserToggleActiveViewTests(TestCase):
 
     def test_toggle_user_active(self):
         self.assertTrue(self.user.is_active)
-        response = self.client.get(reverse("user_toggle", args=[self.user.pk]))
-        self.assertRedirects(response, reverse("user_list"))
+        response = self.client.post(reverse("user_toggle", args=[self.user.pk]))
+        self.assertEqual(response.status_code, 200)
         self.user.refresh_from_db()
         self.assertFalse(self.user.is_active)
 
