@@ -86,6 +86,12 @@ class ToggleUserStatusView(StaffRequiredMixin, View):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+    def get(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        user.is_active = not user.is_active
+        user.save()
+        return redirect('user_list')
+
 
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm, PasswordChangeForm, SetPasswordForm
 from django.shortcuts import render, redirect, get_object_or_404

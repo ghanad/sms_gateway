@@ -142,7 +142,7 @@
               const statusPill = document.getElementById(`status-pill-${userId}`);
               const actionMenu = this.closest('.absolute'); // Get the parent action menu div
 
-              fetch(`{% url 'toggle_user_status' 0 %}`.replace('0', userId), {
+              fetch(`{% url 'user_toggle' 0 %}`.replace('0', userId), {
                   method: 'POST',
                   headers: {
                       'Content-Type': 'application/json',
