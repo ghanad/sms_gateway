@@ -1,4 +1,7 @@
 services:
+  # --------------------------------------------------------------------------
+  #  Server A (FastAPI Gateway) and its Dependencies
+  # --------------------------------------------------------------------------
   server-a:
     build:
       context: ./server-a
@@ -50,38 +53,72 @@ services:
       timeout: 5s
       retries: 5
 
+  # --------------------------------------------------------------------------
+  #  Server B (Django Backend) and its Worker Services
+  # --------------------------------------------------------------------------
+
+  # Step 1: A dedicated, short-lived service just for running migrations.
+  # The other services will wait for this to complete successfully.
+  migration-b:
+    build:
+      context: ./server-b
+      dockerfile: Dockerfile
+    command: python manage.py migrate --noinput
+    env_file:
+      - ./server-b/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Step 2: The main Django web server (Gunicorn).
+  # Starts only after migrations are done.
   server-b:
     build:
       context: ./server-b
       dockerfile: Dockerfile
-    image: sms_gateway_server_b
+    command: gunicorn --bind 0.0.0.0:9000 sms_gateway_project.wsgi:application
     env_file:
       - ./server-b/.env
     ports:
       - "9000:9000"
     depends_on:
-      - rabbitmq
-      - postgres
-    command: >-
-      sh -c "python manage.py migrate && gunicorn --bind 0.0.0.0:9000 sms_gateway_project.wsgi:application"
+      migration-b:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
+  # Step 3: The Celery worker service for background tasks.
+  # Also waits for migrations to be done.
   celery-worker-b:
-    image: sms_gateway_server_b
+    build:
+      context: ./server-b
+      dockerfile: Dockerfile
+    command: celery -A sms_gateway_project worker -l info
     env_file:
       - ./server-b/.env
-    command: >-
-      sh -c "python manage.py migrate && celery -A sms_gateway_project worker -l info"
     depends_on:
-      - rabbitmq
-      - postgres
+      migration-b:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
+  # Step 4: The Celery Beat scheduler for periodic tasks.
+  # Also waits for migrations to be done.
   celery-beat-b:
-    image: sms_gateway_server_b
+    build:
+      context: ./server-b
+      dockerfile: Dockerfile
+    command: celery -A sms_gateway_project beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     env_file:
       - ./server-b/.env
-    command: >-
-      sh -c "python manage.py migrate && celery -A sms_gateway_project beat -l info"
     depends_on:
-      - rabbitmq
-      - postgres
-
+      migration-b:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
