@@ -18,6 +18,7 @@ def compose_environment():
     subprocess.run(["bash", "-c", env_setup], check=True)
 
     subprocess.run(["docker", "compose", "up", "-d", "--build"], check=True)
+
     # Wait for server-a to become ready
     start = time.time()
     while time.time() - start < 60:
@@ -31,8 +32,29 @@ def compose_environment():
     else:
         raise RuntimeError("Services did not become ready in time")
 
-    # Ensure ProviderA exists in server-b (create it if necessary)
+    # Wait for server-b container to be running before seeding providers
     start = time.time()
+    while time.time() - start < 120:
+        container_id = (
+            subprocess.run(
+                ["docker", "compose", "ps", "-q", "server-b"],
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+        )
+        if container_id:
+            status = subprocess.run(
+                ["docker", "inspect", "-f", "{{.State.Status}}", container_id],
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            if status == "running":
+                break
+        time.sleep(1)
+    else:
+        raise RuntimeError("server-b did not start in time")
+
+    # Ensure ProviderA exists in server-b (create it if necessary)
     init_cmd = [
         "docker",
         "compose",
@@ -45,14 +67,22 @@ def compose_environment():
         "-c",
         (
             "from providers.models import SmsProvider; "
-            "SmsProvider.objects.get_or_create(" 
+            "SmsProvider.objects.get_or_create("
             "name='ProviderA', defaults={'is_active': True, 'is_operational': True})"
         ),
     ]
-    while time.time() - start < 60:
-        if subprocess.run(init_cmd).returncode == 0:
+    start = time.time()
+    while time.time() - start < 120:
+        try:
+            subprocess.run(
+                init_cmd,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             break
-        time.sleep(1)
+        except subprocess.CalledProcessError:
+            time.sleep(1)
     else:
         raise RuntimeError("ProviderA was not initialized in time")
 
