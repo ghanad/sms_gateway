@@ -23,23 +23,5 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest requests
 
-      - name: Create environment files
-        run: |
-          sed -n '1,/^# Server B/{/^#/!p}' .env.example > server-a/.env
-          {
-            sed -n '/^# Server B/,/^# Frontend/{/^#/!p}' .env.example
-            grep -E '^(CLIENT_CONFIG|PROVIDERS_CONFIG)=' .env.example
-          } > server-b/.env
-
-      - name: Start services
-        run: docker compose up -d --build
-
-      - name: Wait for services to be healthy
-        run: sleep 30
-
       - name: Run E2E tests
         run: pytest tests/e2e/
-
-      - name: Stop services
-        if: always()
-        run: docker compose down -v
