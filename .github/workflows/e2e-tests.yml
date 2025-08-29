@@ -26,7 +26,10 @@ jobs:
       - name: Create environment files
         run: |
           sed -n '1,/^# Server B/{/^#/!p}' .env.example > server-a/.env
-          sed -n '/^# Server B/,/^# Frontend/{/^#/!p}' .env.example > server-b/.env
+          {
+            sed -n '/^# Server B/,/^# Frontend/{/^#/!p}' .env.example
+            grep -E '^(CLIENT_CONFIG|PROVIDERS_CONFIG)=' .env.example
+          } > server-b/.env
 
       - name: Start services
         run: docker compose up -d --build
