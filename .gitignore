@@ -23,7 +23,6 @@ venv/
 !.env.example
 
 # Docker
-*.dockerignore
 docker-compose.override.yml
 *.log
 

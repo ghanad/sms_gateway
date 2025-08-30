@@ -1,0 +1,43 @@
+# Exclude VCS, IDE, and local env files
+.git
+.github
+.gitignore
+.vscode/
+.idea/
+
+# Python caches and tooling
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+
+# Virtual environments
+.venv/
+venv/
+
+# Test and docs (not needed in image)
+tests/
+README.md
+docs/
+
+# OS/user junk
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Env files (provided via docker-compose env_file)
+.env
+.env.*
+
+# Node/Front-end (if any accidental folders appear)
+node_modules/
+dist/
+build/
