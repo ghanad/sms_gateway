@@ -126,3 +126,19 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+
+  # Step 5: RabbitMQ consumer service for outbound SMS.
+  sms-consumer-b:
+    build:
+      context: ./server-b
+      dockerfile: Dockerfile
+    command: python manage.py consume_sms_queue
+    env_file:
+      - ./server-b/.env
+    depends_on:
+      migration-b:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
