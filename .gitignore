@@ -40,3 +40,9 @@ source_code.json
 
 .gemini/
 gha-creds-*.json
+
+
+# Redis data (both RDB and AOF)
+*.rdb
+*.aof
+*.manifest
