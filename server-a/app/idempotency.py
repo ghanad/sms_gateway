@@ -40,7 +40,7 @@ async def idempotency_middleware(request: Request, call_next):
             extra={"idempotency_key": idempotency_key, "client_api_key": client_api_key, "cached_status_code": cached_data['status_code']}
         )
         if cached_data['status_code'] >= 400:
-            await redis_client.expire(redis_key, settings.IDEMPOTENCY_TTL_SECONDS)
+            await redis_client.expire(redis_key, settings.idempotency_ttl_seconds)
         return Response(
             content=cached_data['body'],
             status_code=cached_data['status_code'],
@@ -80,13 +80,13 @@ async def idempotency_middleware(request: Request, call_next):
     await redis_client.set(
         redis_key,
         json.dumps(cache_data),
-        ex=settings.IDEMPOTENCY_TTL_SECONDS,
+        ex=settings.idempotency_ttl_seconds,
         nx=True # Only set if key does not exist
     )
     # If the key was already set by a concurrent request, we still want to update its TTL
     # to ensure it respects the configured IDEMPOTENCY_TTL_SECONDS.
     # This handles cases where a concurrent request might have set it with a default/short TTL.
-    await redis_client.expire(redis_key, settings.IDEMPOTENCY_TTL_SECONDS)
+    await redis_client.expire(redis_key, settings.idempotency_ttl_seconds)
 
     logger.info(
         "Cached response for idempotency key.",

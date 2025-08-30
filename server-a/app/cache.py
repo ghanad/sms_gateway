@@ -36,10 +36,51 @@ def _build_provider_alias_map(providers: Dict[str, ProviderConfig]) -> Dict[str,
 
 
 def apply_state(state: Dict) -> None:
-    """Replace all in-memory caches with the given state."""
+    """Replace all in-memory caches with the given state.
 
-    users = state.get("users", {})
-    providers = state.get("providers", {})
+    Accepts either canonical shape:
+      {"users": {API_KEY: {..}}, "providers": {NAME: {..}}}
+
+    Or server-b broadcast shape:
+      {"timestamp": ..., "data": {"users": [{"api_key": ..., ...}], "providers": [{"name": ..., ...}]}}
+    """
+
+    # Unwrap nested data if present
+    raw = state.get("data", state)
+
+    users = raw.get("users", {})
+    providers = raw.get("providers", {})
+
+    # Normalize users to dict keyed by api_key
+    if isinstance(users, list):
+        users_dict = {}
+        for u in users:
+            api_key = str(u.get("api_key", "")).strip()
+            if not api_key:
+                continue
+            # Map expected fields for ClientConfig
+            users_dict[api_key] = {
+                "user_id": u.get("user_id"),
+                "username": u.get("username", ""),
+                "is_active": bool(u.get("is_active", True)),
+                "daily_quota": int(u.get("daily_quota", 0)),
+            }
+        users = users_dict
+
+    # Normalize providers to dict keyed by name
+    if isinstance(providers, list):
+        providers_dict = {}
+        for p in providers:
+            name = p.get("name") or p.get("slug")
+            if not name:
+                continue
+            providers_dict[name] = {
+                "is_active": bool(p.get("is_active", True)),
+                "is_operational": bool(p.get("is_operational", True)),
+                "aliases": p.get("aliases") or [],
+                "note": p.get("note"),
+            }
+        providers = providers_dict
 
     new_client_cache = {k: ClientConfig(**v) for k, v in users.items()}
     new_provider_cache = {k: ProviderConfig(**v) for k, v in providers.items()}

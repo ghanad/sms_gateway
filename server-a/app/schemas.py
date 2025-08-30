@@ -6,7 +6,13 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field, validator
 
 class SendSmsRequest(BaseModel):
-    to: str = Field(..., description="Recipient's phone number in E.164 format.")
+    to: str = Field(
+        ...,
+        description=(
+            "Recipient phone number. Accepts local Iran mobile format (e.g., 0912xxxxxxx) "
+            "and normalizes to E.164 (+98912xxxxxxx), or a valid E.164 directly."
+        ),
+    )
     text: str = Field(..., max_length=1000, description="The content of the SMS message.")
     providers: Optional[List[str]] = Field(
         None,
@@ -16,12 +22,28 @@ class SendSmsRequest(BaseModel):
         3600, ge=10, le=86400, description="Time-to-live for the message in seconds. Default is 3600 (1 hour)."
     )
 
-    @validator('to')
-    def validate_e164(cls, v):
-        # E.164 format: starts with +, followed by 1 to 15 digits.
-        if not re.fullmatch(r"^\+\d{1,15}$", v):
-            raise ValueError("Phone number must be in E.164 format (e.g., +1234567890).")
-        return v
+    @validator('to', pre=True)
+    def normalize_and_validate_phone(cls, v):
+        if not isinstance(v, str):
+            raise ValueError("Phone number must be a string.")
+
+        v = v.strip()
+
+        e164_regex = r"^\+\d{1,15}$"
+        if v.startswith('+'):
+            if re.fullmatch(e164_regex, v):
+                return v
+            raise ValueError("Phone must be valid E.164 like +98912xxxxxxx.")
+
+        compact = re.sub(r"[\s\-()]+", "", v)
+
+        # Accept local Iran mobile numbers and normalize to +98...
+        if re.fullmatch(r"^09\d{9}$", compact):
+            return "+98" + compact[1:]
+        if re.fullmatch(r"^9\d{9}$", compact):
+            return "+98" + compact
+
+        raise ValueError("Phone must be 0912xxxxxxx or valid E.164 like +98912xxxxxxx.")
 
 class SendSmsResponse(BaseModel):
     success: bool = Field(..., description="True if the request was accepted for processing.")

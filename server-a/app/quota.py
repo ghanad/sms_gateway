@@ -11,7 +11,7 @@ settings = get_settings()
 
 async def get_redis_client() -> Redis:
     """Dependency to get a Redis client instance."""
-    return Redis.from_url(settings.REDIS_URL)
+    return Redis.from_url(settings.redis_url)
 
 async def enforce_daily_quota(request: Request):
     """
@@ -49,7 +49,7 @@ async def enforce_daily_quota(request: Request):
         # A simple 24h expiration is safer than calculating to end of day,
         # as it avoids complex timezone issues and ensures a consistent window.
         # The task states "Counters expire automatically after 24h."
-        await redis_client.expire(quota_key, settings.IDEMPOTENCY_TTL_SECONDS) # Re-using IDEMPOTENCY_TTL_SECONDS for 24h
+        await redis_client.expire(quota_key, settings.idempotency_ttl_seconds) # Re-using IDEMPOTENCY_TTL_SECONDS for 24h
 
     if current_usage > daily_quota:
         logger.warning(

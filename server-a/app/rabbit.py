@@ -42,7 +42,9 @@ async def publish_sms_message(
     try:
         connection = await get_rabbitmq_connection()
         async with connection.channel() as channel:
-            await channel.declare_exchange(RABBITMQ_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True)
+            exchange = await channel.declare_exchange(
+                RABBITMQ_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True
+            )
             queue = await channel.declare_queue(RABBITMQ_QUEUE_NAME, durable=True)
             await queue.bind(RABBITMQ_EXCHANGE_NAME, routing_key=RABBITMQ_QUEUE_NAME)
 
@@ -65,11 +67,7 @@ async def publish_sms_message(
                 delivery_mode=DeliveryMode.PERSISTENT
             )
 
-            await channel.publish(
-                message,
-                exchange=RABBITMQ_EXCHANGE_NAME,
-                routing_key=RABBITMQ_QUEUE_NAME
-            )
+            await exchange.publish(message, routing_key=RABBITMQ_QUEUE_NAME)
             logger.info(
                 "SMS message published to RabbitMQ.",
                 extra={"tracking_id": str(tracking_id), "client_api_key": client_key, "to": to}
