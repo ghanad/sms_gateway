@@ -165,7 +165,7 @@ async def get_client_context_dep() -> ClientContext:
 async def send_sms(
     request: Request,
     sms_request: SendSmsRequest,
-    client: ClientContext = Depends(get_client_context_dep)
+    client: ClientContext = Depends(get_client_context) 
 ):
     start_time = asyncio.get_event_loop().time()
     SMS_SEND_REQUESTS_TOTAL.inc()
