@@ -49,6 +49,14 @@
     <!-- Card -->
     <section class="card">
         <div class="card__body">
+            <!-- Search -->
+            <form method="get" class="mb-4">
+                <input type="text" name="tracking_id" placeholder="Search by Tracking ID" value="{{ tracking_id }}">
+                <button type="submit">Search</button>
+                {% if tracking_id %}
+                    <a href="{% url 'messaging:my_messages_list' %}">Clear</a>
+                {% endif %}
+            </form>
             <!-- Table -->
             <div class="table-wrap">
                 <table>
