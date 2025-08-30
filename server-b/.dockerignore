@@ -1,0 +1,49 @@
+# VCS and IDE
+.git
+.github
+.gitignore
+.vscode/
+.idea/
+
+# Python bytecode and caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+.tox/
+
+# Virtual environments
+venv/
+.venv/
+
+# Django local artifacts
+*.sqlite3
+db.sqlite3
+celerybeat-schedule*
+
+# Static/media outputs (keep source static/, ignore collected outputs if present)
+staticfiles/
+media/
+
+# Logs and temp
+*.log
+*.tmp
+*.swp
+
+# Docs and tests (not needed in image)
+docs/
+tests/
+README.md
+
+# Environment files (provided via env_file)
+.env
+.env.*
+
+# Front-end artifacts (if present)
+node_modules/
+dist/
+build/
