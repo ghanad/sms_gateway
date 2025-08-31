@@ -1,6 +1,11 @@
 import json
 import uuid
+import os
+import django
 from unittest.mock import MagicMock, patch, call
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "sms_gateway_project.settings")
+django.setup()
 
 from celery.exceptions import Retry
 from django.contrib.auth.models import User
@@ -440,6 +445,68 @@ class MessageDetailViewTests(TestCase):
         self.assertContains(response, self.message.recipient)
         self.assertContains(response, "Success (Provider ID: 123)")
         self.assertContains(response, self.provider.name)
+
+
+class AdminMessageListViewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user("admin", password="pass", is_staff=True)
+        self.user = User.objects.create_user("user", password="pass")
+        self.provider = SmsProvider.objects.create(
+            name="Provider",
+            slug="prov",
+            send_url="http://example.com/send",
+            balance_url="http://example.com/bal",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+        )
+        self.message = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="12345",
+            text="hello",
+            provider=self.provider,
+        )
+
+    def test_message_links_to_admin_detail(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+        detail_url = reverse("messaging:admin_message_detail", args=[self.message.tracking_id])
+        self.assertContains(response, detail_url)
+
+
+class AdminMessageDetailViewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user("admin", password="pass", is_staff=True)
+        self.user = User.objects.create_user("user", password="pass")
+        self.provider = SmsProvider.objects.create(
+            name="Provider",
+            slug="prov",
+            send_url="http://example.com/send",
+            balance_url="http://example.com/bal",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+        )
+        self.message = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="12345",
+            text="hello",
+            provider=self.provider,
+        )
+
+    def test_admin_can_view_message(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_message_detail", args=[self.message.tracking_id])
+        response = self.client.get(url)
+        self.assertContains(response, self.message.recipient)
+        self.assertContains(response, self.user.username)
+
+    def test_non_admin_forbidden(self):
+        self.client.login(username="user", password="pass")
+        url = reverse("messaging:admin_message_detail", args=[self.message.tracking_id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 403)
 
 
 class MagfaStatusSummaryTests(TestCase):

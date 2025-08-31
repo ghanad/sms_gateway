@@ -52,3 +52,21 @@ class MessageDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context['attempt_logs'] = self.object.attempt_logs.select_related('provider').all()
         return context
+
+
+class AdminMessageDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+    model = Message
+    template_name = 'messaging/message_detail.html'
+    slug_field = 'tracking_id'
+    slug_url_kwarg = 'tracking_id'
+
+    def test_func(self):
+        return self.request.user.is_staff
+
+    def get_queryset(self):
+        return Message.objects.all()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['attempt_logs'] = self.object.attempt_logs.select_related('provider').all()
+        return context
