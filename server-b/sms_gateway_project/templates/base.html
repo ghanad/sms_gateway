@@ -46,7 +46,6 @@
         <a href="{% url 'dashboard' %}" class="text-[#111418] text-lg font-bold leading-tight tracking-[-0.015em]">SMS Gateway</a>
     </div>
     <div class="flex flex-1 items-center justify-end gap-8">
-        <select id="timezone-select" class="text-sm border rounded px-2 py-1"></select>
         {% if user.is_staff %}
         <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'sms_provider_list' %}">Providers</a>
         {% endif %}
@@ -71,6 +70,7 @@
                 <a href="{% url 'user_update' user.pk %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Profile</a>
                 {% endif %}
                 <a href="{% url 'account_change_password' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Change Password</a>
+                <a href="{% url 'settings' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Settings</a>
                 <a href="{% url 'account_logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Logout</a>
             </div>
         </details>
