@@ -88,7 +88,7 @@ class UserMessageListViewTests(TestCase):
         self.client.login(username="user", password="pass")
         url = reverse("messaging:my_messages_list")
         response = self.client.get(url, {"tracking_id": "not-a-uuid"})
-        self.assertEqual(list(response.context["messages"]), [])
+        self.assertEqual(list(response.context["message_list"]), [])
 
     def test_awaiting_retry_shows_error_message(self):
         self.client.login(username="user", password="pass")

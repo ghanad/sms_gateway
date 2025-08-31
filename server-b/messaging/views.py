@@ -7,7 +7,7 @@ import uuid
 class UserMessageListView(LoginRequiredMixin, ListView):
     model = Message
     template_name = 'messaging/message_list.html'
-    context_object_name = 'messages'
+    context_object_name = 'message_list'
     paginate_by = 25
 
     def get_queryset(self):
@@ -29,7 +29,7 @@ class UserMessageListView(LoginRequiredMixin, ListView):
 class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Message
     template_name = 'messaging/admin_message_list.html'
-    context_object_name = 'messages'
+    context_object_name = 'message_list'
     paginate_by = 25
 
     def test_func(self):

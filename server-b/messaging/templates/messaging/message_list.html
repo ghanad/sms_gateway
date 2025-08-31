@@ -70,7 +70,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for message in messages %}
+                        {% for message in message_list %}
                         <tr>
                             <td><strong><a href="{% url 'messaging:message_detail' message.tracking_id %}">{{ message.recipient }}</a></strong></td>
                             <td>{{ message.text|truncatechars:50 }}</td>
