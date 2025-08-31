@@ -169,5 +169,9 @@ CELERY_BEAT_SCHEDULE = {
     'publish-full-state': {
         'task': 'core.state_broadcaster.publish_full_state',
         'schedule': timedelta(seconds=60),
-    }
+    },
+    'dispatch-pending-messages': {
+        'task': 'messaging.tasks.dispatch_pending_messages',
+        'schedule': timedelta(seconds=10),
+    },
 }

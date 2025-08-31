@@ -1,8 +1,14 @@
+import json
 import logging
 import uuid
+
+import pika
 from celery import shared_task
-from django.utils import timezone
+from django.conf import settings
 from django.contrib.auth.models import User
+from django.db import transaction
+from django.utils import timezone
+
 from messaging.models import Message, MessageStatus
 from providers.models import SmsProvider
 from providers.adapters import get_provider_adapter
@@ -74,3 +80,97 @@ def process_outbound_sms(self, envelope: dict):
         message.provider_response = result
         message.sent_at = timezone.now()
     message.save()
+
+
+@shared_task
+def dispatch_pending_messages(batch_size: int = 50):
+    """Periodically dispatch pending messages for sending."""
+    message_ids = []
+    with transaction.atomic():
+        pending = (
+            Message.objects.select_for_update(skip_locked=True)
+            .filter(status=MessageStatus.PENDING)[:batch_size]
+        )
+        ids = [m.id for m in pending]
+        if ids:
+            Message.objects.filter(id__in=ids).update(status=MessageStatus.PROCESSING)
+            message_ids = ids
+
+    for mid in message_ids:
+        send_sms_with_failover.delay(mid)
+
+
+@shared_task(bind=True, max_retries=5)
+def send_sms_with_failover(self, message_id: int):
+    """Send an SMS using available providers with retry and failover."""
+    message = Message.objects.get(pk=message_id)
+    message.status = MessageStatus.PROCESSING
+    message.send_attempts = message.send_attempts + 1
+    message.save(update_fields=["status", "send_attempts"])
+
+    envelope = message.provider_response or {}
+    preferred = envelope.get("providers_effective") or []
+    if preferred:
+        qs = SmsProvider.objects.filter(is_active=True, slug__in=preferred)
+        providers = sorted(qs, key=lambda p: preferred.index(p.slug))
+    else:
+        providers = list(
+            SmsProvider.objects.filter(is_active=True).order_by("-priority")
+        )
+
+    last_error = "No active providers available"
+    for provider in providers:
+        adapter = get_provider_adapter(provider)
+        result = adapter.send_sms(message.recipient, message.text)
+        if result.get("error"):
+            last_error = result.get("error")
+            continue
+
+        message.status = MessageStatus.SENT_TO_PROVIDER
+        message.provider = provider
+        message.provider_message_id = result.get("message_id")
+        message.provider_response = result
+        message.sent_at = timezone.now()
+        message.error_message = ""
+        message.save()
+        return
+
+    # All providers failed
+    message.error_message = last_error
+    if self.request.retries < self.max_retries:
+        message.status = MessageStatus.AWAITING_RETRY
+        message.save(update_fields=["status", "error_message"])
+        schedule = [60, 300, 900, 1800, 3600]
+        countdown = schedule[min(self.request.retries, len(schedule) - 1)]
+        raise self.retry(countdown=countdown)
+
+    message.status = MessageStatus.FAILED
+    message.save(update_fields=["status", "error_message"])
+    publish_to_dlq(message)
+
+
+def publish_to_dlq(message: Message) -> None:
+    """Publish message details to a Dead Letter Queue for inspection."""
+    try:
+        credentials = pika.PlainCredentials(
+            settings.RABBITMQ_USER, settings.RABBITMQ_PASS
+        )
+        params = pika.ConnectionParameters(
+            host=settings.RABBITMQ_HOST, credentials=credentials
+        )
+        connection = pika.BlockingConnection(params)
+        channel = connection.channel()
+        channel.queue_declare(queue="sms_outbound_dlq", durable=True)
+        body = json.dumps(
+            {
+                "id": message.id,
+                "tracking_id": str(message.tracking_id),
+                "error": message.error_message,
+            }
+        )
+        channel.basic_publish(
+            exchange="", routing_key="sms_outbound_dlq", body=body
+        )
+        connection.close()
+    except Exception:  # pragma: no cover - defensive
+        logger.exception("Failed to publish message %s to DLQ", message.id)

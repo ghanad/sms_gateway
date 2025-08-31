@@ -7,6 +7,7 @@ import uuid
 class MessageStatus(models.TextChoices):
     PENDING = 'PENDING', 'Pending'
     PROCESSING = 'PROCESSING', 'Processing'
+    AWAITING_RETRY = 'AWAITING_RETRY', 'Awaiting Retry'
     SENT_TO_PROVIDER = 'SENT', 'Sent to Provider'
     DELIVERED = 'DELIVERED', 'Delivered'
     FAILED = 'FAILED', 'Failed'
