@@ -430,7 +430,7 @@ class MessageDetailViewTests(TestCase):
             message=self.message,
             provider=self.provider,
             status=AttemptStatus.SUCCESS,
-            provider_response={"message_id": "abc"},
+            provider_response={"status": 0, "messages": [{"id": 123, "status": 0}]},
         )
 
     def test_detail_view_displays_attempt_logs(self):
@@ -438,5 +438,67 @@ class MessageDetailViewTests(TestCase):
         url = reverse("messaging:message_detail", args=[self.message.tracking_id])
         response = self.client.get(url)
         self.assertContains(response, self.message.recipient)
-        self.assertContains(response, "abc")
+        self.assertContains(response, "Success (Provider ID: 123)")
         self.assertContains(response, self.provider.name)
+
+
+class MagfaStatusSummaryTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("user", password="pass")
+        self.provider = SmsProvider.objects.create(
+            name="Magfa",
+            slug="magfa",
+            send_url="http://example.com/send",
+            balance_url="http://example.com/balance",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+        )
+        self.message = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="12345",
+            text="hello",
+            provider=self.provider,
+        )
+
+    def _create_attempt(self, response, status=AttemptStatus.FAILURE):
+        return MessageAttemptLog.objects.create(
+            message=self.message,
+            provider=self.provider,
+            status=status,
+            provider_response=response,
+        )
+
+    def test_parses_successful_response(self):
+        resp = {"status": 0, "messages": [{"id": 111, "status": 0}]}
+        attempt = self._create_attempt(resp, status=AttemptStatus.SUCCESS)
+        self.assertEqual(
+            attempt.get_magfa_status_summary(), "Success (Provider ID: 111)"
+        )
+
+    def test_maps_error_codes(self):
+        cases = {
+            1: "Invalid recipient number",
+            14: "Insufficient credit",
+            27: "Recipient is blacklisted",
+            33: "Recipient has blocked messages from this sender",
+            99: "Failed with provider code: 99",
+        }
+        for code, expected in cases.items():
+            resp = {"status": 0, "messages": [{"id": 111, "status": code}]}
+            attempt = self._create_attempt(resp)
+            self.assertEqual(attempt.get_magfa_status_summary(), expected)
+
+    def test_handles_overall_failure(self):
+        resp = {"status": 18}
+        attempt = self._create_attempt(resp)
+        self.assertEqual(
+            attempt.get_magfa_status_summary(),
+            "Request Failed (Overall Status: 18)",
+        )
+
+    def test_handles_invalid_structure(self):
+        attempt = self._create_attempt("not a dict")
+        self.assertEqual(
+            attempt.get_magfa_status_summary(), "Could not parse provider response."
+        )

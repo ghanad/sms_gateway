@@ -111,3 +111,56 @@ class MessageAttemptLog(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover - for admin/debug only
         return f"{self.provider.name} - {self.status}"
+
+    def get_magfa_status_summary(self):
+        """Return a human-readable summary of the Magfa provider response.
+
+        The Magfa API returns a nested JSON structure. This helper method
+        interprets the structure and maps provider status codes to friendly
+        messages for display in templates.
+
+        Examples of expected provider_response structure::
+
+            {
+                "status": 0,
+                "messages": [
+                    {"id": 111, "status": 27, "recipient": "98912..."}
+                ]
+            }
+
+        Returns:
+            str: A human-friendly summary of the status or a parsing error
+            message if the response doesn't match the expected structure.
+        """
+
+        resp = self.provider_response
+        if not isinstance(resp, dict):
+            return "Could not parse provider response."
+
+        overall_status = resp.get("status")
+        if overall_status is None:
+            return "Could not parse provider response."
+        if overall_status != 0:
+            return f"Request Failed (Overall Status: {overall_status})"
+
+        try:
+            message_info = resp.get("messages", [])[0]
+            status_code = message_info.get("status")
+        except (IndexError, AttributeError):
+            return "Could not parse provider response."
+
+        if status_code is None:
+            return "Could not parse provider response."
+
+        status_map = {
+            0: lambda info: f"Success (Provider ID: {info.get('id')})",
+            1: lambda info: "Invalid recipient number",
+            14: lambda info: "Insufficient credit",
+            27: lambda info: "Recipient is blacklisted",
+            33: lambda info: "Recipient has blocked messages from this sender",
+        }
+
+        if status_code in status_map:
+            return status_map[status_code](message_info)
+
+        return f"Failed with provider code: {status_code}"

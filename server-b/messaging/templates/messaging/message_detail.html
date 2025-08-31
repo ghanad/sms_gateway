@@ -42,7 +42,7 @@
                             <td>{{ attempt.provider.name }}</td>
                             <td class="utc-time" data-utc="{{ attempt.timestamp|date:'c' }}"></td>
                             <td>{{ attempt.get_status_display }}</td>
-                            <td><pre>{{ attempt.provider_response|default:'' }}</pre></td>
+                            <td><pre>{{ attempt.get_magfa_status_summary }}</pre></td>
                         </tr>
                         {% empty %}
                         <tr>
