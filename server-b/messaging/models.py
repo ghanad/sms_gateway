@@ -81,3 +81,33 @@ class Message(models.Model):
         indexes = [
             models.Index(fields=['status', 'created_at']),
         ]
+
+
+class AttemptStatus(models.TextChoices):
+    """Status of a single provider attempt."""
+
+    SUCCESS = "SUCCESS", "Success"
+    FAILURE = "FAILURE", "Failure"
+
+
+class MessageAttemptLog(models.Model):
+    """Audit log for individual provider sending attempts."""
+
+    message = models.ForeignKey(
+        Message, on_delete=models.CASCADE, related_name="attempt_logs"
+    )
+    provider = models.ForeignKey(
+        SmsProvider,
+        on_delete=models.PROTECT,
+        related_name="attempt_logs",
+        help_text="The provider used for this attempt",
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=AttemptStatus.choices)
+    provider_response = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["timestamp"]
+
+    def __str__(self) -> str:  # pragma: no cover - for admin/debug only
+        return f"{self.provider.name} - {self.status}"

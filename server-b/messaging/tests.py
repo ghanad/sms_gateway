@@ -8,7 +8,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
-from messaging.models import Message, MessageStatus
+from messaging.models import Message, MessageStatus, MessageAttemptLog, AttemptStatus
 from messaging.tasks import (
     process_outbound_sms,
     dispatch_pending_messages,
@@ -99,6 +99,13 @@ class UserMessageListViewTests(TestCase):
         response = self.client.get(url)
         self.assertContains(response, "Awaiting Retry")
         self.assertContains(response, "temporary failure")
+
+    def test_message_links_to_detail_view(self):
+        self.client.login(username="user", password="pass")
+        url = reverse("messaging:my_messages_list")
+        response = self.client.get(url)
+        detail_url = reverse("messaging:message_detail", args=[self.msg1.tracking_id])
+        self.assertContains(response, detail_url)
 
 
 class ProcessOutboundSmsTaskTests(TestCase):
@@ -351,6 +358,13 @@ class SendSmsWithFailoverTaskTests(TestCase):
         adapter1.send_sms.assert_called_once()
         adapter2.send_sms.assert_called_once()
 
+        logs = MessageAttemptLog.objects.filter(message=self.message).order_by('timestamp')
+        self.assertEqual(logs.count(), 2)
+        self.assertEqual(logs[0].provider, self.provider1)
+        self.assertEqual(logs[0].status, AttemptStatus.FAILURE)
+        self.assertEqual(logs[1].provider, self.provider2)
+        self.assertEqual(logs[1].status, AttemptStatus.SUCCESS)
+
     @patch("messaging.tasks.publish_to_dlq")
     @patch("messaging.tasks.get_provider_adapter")
     def test_retry_on_all_provider_failure(self, mock_get_adapter, mock_publish):
@@ -392,3 +406,37 @@ class SendSmsWithFailoverTaskTests(TestCase):
         self.message.refresh_from_db()
         self.assertEqual(self.message.status, MessageStatus.FAILED)
         mock_publish.assert_called_once_with(self.message)
+
+
+class MessageDetailViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("user", password="pass")
+        self.provider = SmsProvider.objects.create(
+            name="Provider",
+            slug="prov",
+            send_url="http://example.com/send",
+            balance_url="http://example.com/bal",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+        )
+        self.message = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="12345",
+            text="hello",
+            provider=self.provider,
+        )
+        MessageAttemptLog.objects.create(
+            message=self.message,
+            provider=self.provider,
+            status=AttemptStatus.SUCCESS,
+            provider_response={"message_id": "abc"},
+        )
+
+    def test_detail_view_displays_attempt_logs(self):
+        self.client.login(username="user", password="pass")
+        url = reverse("messaging:message_detail", args=[self.message.tracking_id])
+        response = self.client.get(url)
+        self.assertContains(response, self.message.recipient)
+        self.assertContains(response, "abc")
+        self.assertContains(response, self.provider.name)

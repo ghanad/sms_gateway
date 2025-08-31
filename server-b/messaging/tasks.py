@@ -9,7 +9,12 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
 
-from messaging.models import Message, MessageStatus
+from messaging.models import (
+    Message,
+    MessageStatus,
+    MessageAttemptLog,
+    AttemptStatus,
+)
 from providers.models import SmsProvider
 from providers.adapters import get_provider_adapter
 
@@ -115,8 +120,25 @@ def send_sms_with_failover(self, message_id: int):
     last_error_message = "No active providers available"
     for provider in providers:
         adapter = get_provider_adapter(provider)
-        result = adapter.send_sms(message.recipient, message.text)
-        if result.get("error"):
+        try:
+            result = adapter.send_sms(message.recipient, message.text)
+            status = (
+                AttemptStatus.FAILURE
+                if result.get("error")
+                else AttemptStatus.SUCCESS
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            result = {"error": str(exc)}
+            status = AttemptStatus.FAILURE
+
+        MessageAttemptLog.objects.create(
+            message=message,
+            provider=provider,
+            status=status,
+            provider_response=result,
+        )
+
+        if status == AttemptStatus.FAILURE:
             last_error_message = result.get("error")
             continue
 
