@@ -16,6 +16,7 @@
 
     <section class="card">
         <div class="card__body">
+            <p><strong>User:</strong> {{ object.user.username }}</p>
             <p><strong>Recipient:</strong> {{ object.recipient }}</p>
             <p><strong>Text:</strong> {{ object.text }}</p>
             <p><strong>Status:</strong> {{ object.get_status_display }}</p>

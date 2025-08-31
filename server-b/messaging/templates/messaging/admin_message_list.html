@@ -66,7 +66,7 @@
                         {% for message in message_list %}
                         <tr>
                             <td><strong>{{ message.user.username }}</strong></td>
-                            <td><strong>{{ message.recipient }}</strong></td>
+                            <td><strong><a href="{% url 'messaging:admin_message_detail' message.tracking_id %}">{{ message.recipient }}</a></strong></td>
                             <td>{{ message.text|truncatechars:50 }}</td>
                             <td><span class="pill pill--on">{{ message.get_status_display }}</span></td>
                             <td>{{ message.provider.name }}</td>
