@@ -1,5 +1,5 @@
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.views.generic import ListView
+from django.views.generic import ListView, DetailView
 from .models import Message
 import uuid
 
@@ -37,3 +37,18 @@ class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def get_queryset(self):
         return Message.objects.all().order_by('-sent_at')
+
+
+class MessageDetailView(LoginRequiredMixin, DetailView):
+    model = Message
+    template_name = 'messaging/message_detail.html'
+    slug_field = 'tracking_id'
+    slug_url_kwarg = 'tracking_id'
+
+    def get_queryset(self):
+        return Message.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['attempt_logs'] = self.object.attempt_logs.select_related('provider').all()
+        return context

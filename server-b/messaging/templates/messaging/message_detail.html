@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <div>
+            <h1 class="title">Message Details</h1>
+            <p class="subtitle">Full history for this message.</p>
+        </div>
+    </div>
+
+    <section class="card">
+        <div class="card__body">
+            <p><strong>Recipient:</strong> {{ object.recipient }}</p>
+            <p><strong>Text:</strong> {{ object.text }}</p>
+            <p><strong>Status:</strong> {{ object.get_status_display }}</p>
+            <p><strong>Provider:</strong> {{ object.provider.name }}</p>
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="card__body">
+            <h2>Attempt History</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Provider</th>
+                            <th>Timestamp</th>
+                            <th>Status</th>
+                            <th>Provider Response</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for attempt in attempt_logs %}
+                        <tr>
+                            <td>{{ attempt.provider.name }}</td>
+                            <td>{{ attempt.timestamp|date:"Y-m-d H:i" }}</td>
+                            <td>{{ attempt.get_status_display }}</td>
+                            <td><pre>{{ attempt.provider_response|default:'' }}</pre></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4">No attempts logged.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
