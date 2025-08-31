@@ -51,7 +51,7 @@ class Command(BaseCommand):
                             recipient=envelope.get("to"),
                             text=envelope.get("text"),
                             status=MessageStatus.PENDING,
-                            provider_response=envelope,
+                            initial_envelope=envelope,
                         )
                 ch.basic_ack(delivery_tag=method.delivery_tag)
             except Exception:
