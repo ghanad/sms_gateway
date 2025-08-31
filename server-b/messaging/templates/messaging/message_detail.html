@@ -40,7 +40,7 @@
                         {% for attempt in attempt_logs %}
                         <tr>
                             <td>{{ attempt.provider.name }}</td>
-                            <td>{{ attempt.timestamp|date:"Y-m-d H:i" }}</td>
+                            <td class="utc-time" data-utc="{{ attempt.timestamp|date:'c' }}"></td>
                             <td>{{ attempt.get_status_display }}</td>
                             <td><pre>{{ attempt.provider_response|default:'' }}</pre></td>
                         </tr>
