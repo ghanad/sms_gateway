@@ -81,7 +81,7 @@
                                 {% endif %}
                             </td>
                             <td>{{ message.provider.name }}</td>
-                            <td>{{ message.sent_at|date:"Y-m-d H:i" }}</td>
+                            <td class="utc-time" data-utc="{{ message.sent_at|date:'c' }}"></td>
                         </tr>
                         {% empty %}
                         <tr>
