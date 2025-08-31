@@ -131,3 +131,30 @@ def test_provider_alias_collision_detection():
             'provider-a': ProviderConfig(is_active=True, is_operational=True, aliases=['alias-a']),
             'provider-b': ProviderConfig(is_active=True, is_operational=True, aliases=['ALIAS-A'])
         })
+
+def test_empty_provider_entries_use_smart_selection(provider_gate_instance: ProviderGate, mock_request: Request):
+    # Input contains only empty/whitespace providers; should be treated as no providers (smart selection)
+    result = provider_gate_instance.process_providers(mock_request, ["", "   ", "\t\n"]) 
+    assert result == []
+
+def test_empty_provider_entries_with_no_available_providers_raise_503(provider_gate_instance: ProviderGate, mock_request: Request):
+    # Disable all providers to simulate unavailability
+    for config in provider_gate_instance.providers_config.values():
+        config.is_active = False
+
+    with pytest.raises(HTTPException) as exc_info:
+        provider_gate_instance.process_providers(mock_request, ["", "   "])
+
+    assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert exc_info.value.detail["error_code"] == "NO_PROVIDER_AVAILABLE"
+
+def test_mixed_empty_and_valid_providers_ignores_empty(provider_gate_instance: ProviderGate, mock_request: Request):
+    # Should ignore empty entries and accept valid ones
+    result = provider_gate_instance.process_providers(mock_request, ["", "  ", "ProviderA"]) 
+    assert result == ["ProviderA"]
+
+def test_provider_gate_disabled_with_empty_entries(provider_gate_instance: ProviderGate, mock_request: Request):
+    provider_gate_instance.settings.PROVIDER_GATE_ENABLED = False
+    # When gate is disabled and only empty providers are sent, treat as no providers requested
+    result = provider_gate_instance.process_providers(mock_request, ["", "   "])
+    assert result == []

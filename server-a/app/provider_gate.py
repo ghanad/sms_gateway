@@ -40,12 +40,21 @@ class ProviderGate:
         """
         client_api_key = getattr(request.state, 'client', None).api_key if hasattr(request.state, 'client') else "unknown"
 
+        # Normalize requested providers: treat empty/whitespace strings as not provided
+        normalized_requested: Optional[List[str]]
+        if requested_providers is None:
+            normalized_requested = None
+        else:
+            # Keep only non-empty, non-whitespace provider names
+            cleaned = [p.strip() for p in requested_providers if isinstance(p, str) and p.strip()]
+            normalized_requested = cleaned if cleaned else None
+
         if not self.settings.PROVIDER_GATE_ENABLED:
             logger.info("Provider Gate is disabled. Bypassing provider validation.")
             # If disabled, and providers were requested, map them to canonical names without further validation
-            if requested_providers:
+            if normalized_requested:
                 effective_providers = []
-                for p in requested_providers:
+                for p in normalized_requested:
                     canonical_name = self._get_canonical_provider_name(p)
                     if canonical_name:
                         effective_providers.append(canonical_name)
@@ -57,7 +66,7 @@ class ProviderGate:
                 return effective_providers
             return [] # If disabled and no providers requested, return empty list for smart selection
 
-        if not requested_providers:
+        if not normalized_requested:
             # Smart Selection
             active_operational_providers = [
                 name for name, config in self.providers_config.items()
@@ -84,7 +93,7 @@ class ProviderGate:
         unknown_providers: List[str] = []
         disabled_providers: List[str] = []
 
-        for provider_alias in requested_providers:
+        for provider_alias in normalized_requested:
             canonical_name = self._get_canonical_provider_name(provider_alias)
             if not canonical_name:
                 unknown_providers.append(provider_alias)
@@ -109,7 +118,7 @@ class ProviderGate:
                 }
             )
 
-        if len(requested_providers) == 1:
+        if len(normalized_requested) == 1:
             # Exclusive Selection
             if disabled_providers:
                 provider_name = disabled_providers[0]
@@ -135,7 +144,7 @@ class ProviderGate:
                     SMS_REQUEST_REJECTED_PROVIDER_DISABLED_TOTAL.labels(client=client_api_key, provider=p_name).inc()
                 logger.info(
                     "Provider Gate: Filtering out disabled/non-operational providers from prioritized list.",
-                    extra={"client_api_key": client_api_key, "disabled_providers": disabled_providers, "effective_providers_before_filter": requested_providers}
+                    extra={"client_api_key": client_api_key, "disabled_providers": disabled_providers, "effective_providers_before_filter": normalized_requested}
                 )
 
             if not effective_providers:
