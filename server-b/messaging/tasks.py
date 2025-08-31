@@ -44,6 +44,7 @@ def process_outbound_sms(self, envelope: dict):
         recipient=envelope.get("to"),
         text=envelope.get("text"),
         status=MessageStatus.PROCESSING,
+        initial_envelope=envelope,
     )
 
     provider_name = None
@@ -76,14 +77,16 @@ def process_outbound_sms(self, envelope: dict):
     adapter = get_provider_adapter(provider)
     result = adapter.send_sms(message.recipient, message.text)
 
-    if result.get("error"):
-        message.status = MessageStatus.FAILED
-        message.error_message = result.get("error")
-    else:
+    if result.get("status") == "success":
         message.status = MessageStatus.SENT_TO_PROVIDER
         message.provider_message_id = result.get("message_id")
-        message.provider_response = result
+        message.provider_response = result.get("raw_response")
         message.sent_at = timezone.now()
+        message.error_message = ""
+    else:
+        message.status = MessageStatus.FAILED
+        message.error_message = result.get("reason")
+        message.provider_response = result.get("raw_response")
     message.save()
 
 
@@ -107,59 +110,96 @@ def dispatch_pending_messages(batch_size: int = 50):
 
 @shared_task(bind=True, max_retries=5)
 def send_sms_with_failover(self, message_id: int):
-    """Send an SMS using available providers with retry and failover."""
+    """Send an SMS using available providers with retry and intelligent failover."""
     message = Message.objects.get(pk=message_id)
-    message.status = MessageStatus.PROCESSING
+    envelope = message.initial_envelope or {}
+
+    # Determine provider list
+    provider_names = envelope.get("providers_effective") or []
+    providers: list[SmsProvider] = []
+    if provider_names:
+        for name in provider_names:
+            provider = SmsProvider.objects.filter(slug__iexact=name).first()
+            if not provider:
+                provider = SmsProvider.objects.filter(name__iexact=name).first()
+            if provider:
+                providers.append(provider)
+    else:
+        providers = list(
+            SmsProvider.objects.filter(is_active=True).order_by("-priority")
+        )
+
     message.send_attempts = message.send_attempts + 1
-    message.save(update_fields=["status", "send_attempts"])
+    message.save(update_fields=["send_attempts"])
 
-    providers = list(
-        SmsProvider.objects.filter(is_active=True).order_by("-priority")
-    )
+    sent_successfully = False
+    all_failures_were_permanent = True
+    error_logs: list[str] = []
 
-    last_error_message = "No active providers available"
     for provider in providers:
         adapter = get_provider_adapter(provider)
         try:
             result = adapter.send_sms(message.recipient, message.text)
-            status = (
-                AttemptStatus.FAILURE
-                if result.get("error")
-                else AttemptStatus.SUCCESS
-            )
         except Exception as exc:  # pragma: no cover - defensive
-            result = {"error": str(exc)}
-            status = AttemptStatus.FAILURE
+            result = {
+                "status": "failure",
+                "type": "transient",
+                "reason": str(exc),
+                "raw_response": None,
+            }
+
+        status = (
+            AttemptStatus.SUCCESS
+            if result.get("status") == "success"
+            else AttemptStatus.FAILURE
+        )
 
         MessageAttemptLog.objects.create(
             message=message,
             provider=provider,
             status=status,
-            provider_response=result,
+            provider_response=result.get("raw_response"),
         )
 
-        if status == AttemptStatus.FAILURE:
-            last_error_message = result.get("error")
-            continue
+        if result.get("status") == "success":
+            sent_successfully = True
+            message.status = MessageStatus.SENT_TO_PROVIDER
+            message.provider = provider
+            message.provider_message_id = result.get("message_id")
+            message.provider_response = result.get("raw_response")
+            message.sent_at = timezone.now()
+            message.error_message = ""
+            message.save()
+            break
 
-        message.status = MessageStatus.SENT_TO_PROVIDER
-        message.provider = provider
-        message.provider_message_id = result.get("message_id")
-        message.provider_response = result
-        message.sent_at = timezone.now()
-        message.error_message = ""
-        message.save()
+        # Failure case
+        reason = result.get("reason") or "Unknown error"
+        error_logs.append(reason)
+        if result.get("type") == "transient":
+            all_failures_were_permanent = False
+
+    if sent_successfully:
         return
 
-    # All providers failed
-    message.error_message = last_error_message
-    if self.request.retries < self.max_retries:
-        message.status = MessageStatus.AWAITING_RETRY
+    if all_failures_were_permanent:
+        message.status = MessageStatus.FAILED
+        message.error_message = "; ".join(error_logs)
         message.save(update_fields=["status", "error_message"])
+        publish_to_dlq(message)
+        return
+
+    # At least one transient failure
+    message.status = MessageStatus.AWAITING_RETRY
+    message.error_message = error_logs[-1] if error_logs else "Transient failure"
+    message.save(update_fields=["status", "error_message"])
+
+    if self.request.retries < self.max_retries:
         delay = 60 * (2 ** self.request.retries)
         raise self.retry(countdown=delay)
 
+    # Retry limit exceeded
     message.status = MessageStatus.FAILED
+    message.error_message = "; ".join(error_logs)
     message.save(update_fields=["status", "error_message"])
     publish_to_dlq(message)
 

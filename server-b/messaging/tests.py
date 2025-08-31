@@ -138,7 +138,11 @@ class ProcessOutboundSmsTaskTests(TestCase):
     @patch("messaging.tasks.get_provider_adapter")
     def test_successful_send_updates_message(self, mock_get_adapter):
         adapter = MagicMock()
-        adapter.send_sms.return_value = {"message_id": "abc123"}
+        adapter.send_sms.return_value = {
+            "status": "success",
+            "message_id": "abc123",
+            "raw_response": {},
+        }
         mock_get_adapter.return_value = adapter
 
         process_outbound_sms.run(self.envelope)
@@ -153,7 +157,12 @@ class ProcessOutboundSmsTaskTests(TestCase):
     @patch("messaging.tasks.get_provider_adapter")
     def test_error_from_provider_sets_failed_status(self, mock_get_adapter):
         adapter = MagicMock()
-        adapter.send_sms.return_value = {"error": "oops"}
+        adapter.send_sms.return_value = {
+            "status": "failure",
+            "type": "permanent",
+            "reason": "oops",
+            "raw_response": {},
+        }
         mock_get_adapter.return_value = adapter
 
         process_outbound_sms.run(self.envelope)
@@ -221,7 +230,7 @@ class ConsumeSmsQueueCommandTests(TestCase):
             tracking_id=tracking,
             recipient="123",
             text="hello",
-            provider_response={},
+            initial_envelope={},
         )
 
         channel = MagicMock()
@@ -343,15 +352,24 @@ class SendSmsWithFailoverTaskTests(TestCase):
             tracking_id=uuid.uuid4(),
             recipient="12345",
             text="hello",
-            provider_response={},
+            initial_envelope={},
         )
 
     @patch("messaging.tasks.get_provider_adapter")
     def test_failover_to_second_provider(self, mock_get_adapter):
         adapter1 = MagicMock()
-        adapter1.send_sms.return_value = {"error": "oops"}
+        adapter1.send_sms.return_value = {
+            "status": "failure",
+            "type": "permanent",
+            "reason": "oops",
+            "raw_response": {},
+        }
         adapter2 = MagicMock()
-        adapter2.send_sms.return_value = {"message_id": "xyz"}
+        adapter2.send_sms.return_value = {
+            "status": "success",
+            "message_id": "xyz",
+            "raw_response": {},
+        }
         mock_get_adapter.side_effect = [adapter1, adapter2]
 
         send_sms_with_failover.run(self.message.id)
@@ -372,10 +390,22 @@ class SendSmsWithFailoverTaskTests(TestCase):
 
     @patch("messaging.tasks.publish_to_dlq")
     @patch("messaging.tasks.get_provider_adapter")
-    def test_retry_on_all_provider_failure(self, mock_get_adapter, mock_publish):
-        adapter = MagicMock()
-        adapter.send_sms.return_value = {"error": "fail"}
-        mock_get_adapter.return_value = adapter
+    def test_retry_on_transient_failure(self, mock_get_adapter, mock_publish):
+        adapter1 = MagicMock()
+        adapter1.send_sms.return_value = {
+            "status": "failure",
+            "type": "transient",
+            "reason": "temp",
+            "raw_response": {},
+        }
+        adapter2 = MagicMock()
+        adapter2.send_sms.return_value = {
+            "status": "failure",
+            "type": "transient",
+            "reason": "temp2",
+            "raw_response": {},
+        }
+        mock_get_adapter.side_effect = [adapter1, adapter2]
 
         original_retries = send_sms_with_failover.request.retries
         send_sms_with_failover.request.retries = 0
@@ -390,6 +420,7 @@ class SendSmsWithFailoverTaskTests(TestCase):
 
         self.message.refresh_from_db()
         self.assertEqual(self.message.status, MessageStatus.AWAITING_RETRY)
+        self.assertEqual(self.message.error_message, "temp2")
         mock_retry.assert_called_once()
         self.assertEqual(mock_retry.call_args.kwargs["countdown"], 60)
         mock_publish.assert_not_called()
@@ -397,9 +428,21 @@ class SendSmsWithFailoverTaskTests(TestCase):
     @patch("messaging.tasks.publish_to_dlq")
     @patch("messaging.tasks.get_provider_adapter")
     def test_permanent_failure_sends_to_dlq(self, mock_get_adapter, mock_publish):
-        adapter = MagicMock()
-        adapter.send_sms.return_value = {"error": "fail"}
-        mock_get_adapter.return_value = adapter
+        adapter1 = MagicMock()
+        adapter1.send_sms.return_value = {
+            "status": "failure",
+            "type": "permanent",
+            "reason": "fail1",
+            "raw_response": {},
+        }
+        adapter2 = MagicMock()
+        adapter2.send_sms.return_value = {
+            "status": "failure",
+            "type": "permanent",
+            "reason": "fail2",
+            "raw_response": {},
+        }
+        mock_get_adapter.side_effect = [adapter1, adapter2]
 
         original_retries = send_sms_with_failover.request.retries
         send_sms_with_failover.request.retries = 5
@@ -410,6 +453,33 @@ class SendSmsWithFailoverTaskTests(TestCase):
 
         self.message.refresh_from_db()
         self.assertEqual(self.message.status, MessageStatus.FAILED)
+        self.assertEqual(self.message.error_message, "fail1; fail2")
+        mock_publish.assert_called_once_with(self.message)
+
+    @patch("messaging.tasks.publish_to_dlq")
+    @patch("messaging.tasks.get_provider_adapter")
+    def test_respects_user_specified_provider_order(self, mock_get_adapter, mock_publish):
+        self.message.initial_envelope = {"providers_effective": ["p2", "p1"]}
+        self.message.save(update_fields=["initial_envelope"])
+
+        adapter_order = []
+
+        def make_adapter(name):
+            adapter = MagicMock()
+            adapter.send_sms.return_value = {
+                "status": "failure",
+                "type": "permanent",
+                "reason": name,
+                "raw_response": {},
+            }
+            adapter_order.append(name)
+            return adapter
+
+        mock_get_adapter.side_effect = [make_adapter("p2"), make_adapter("p1")]
+
+        send_sms_with_failover.run(self.message.id)
+
+        self.assertEqual(adapter_order, ["p2", "p1"])
         mock_publish.assert_called_once_with(self.message)
 
 

@@ -49,6 +49,13 @@ class Message(models.Model):
         help_text="Number of failed attempts to send"
     )
 
+    # --- Original envelope ---
+    initial_envelope = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="The full envelope received from the queue",
+    )
+
     # --- Information from the provider's response ---
     provider_message_id = models.CharField(
         max_length=255,
