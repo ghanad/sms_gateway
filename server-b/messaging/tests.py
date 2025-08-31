@@ -90,6 +90,16 @@ class UserMessageListViewTests(TestCase):
         response = self.client.get(url, {"tracking_id": "not-a-uuid"})
         self.assertEqual(list(response.context["messages"]), [])
 
+    def test_awaiting_retry_shows_error_message(self):
+        self.client.login(username="user", password="pass")
+        self.msg1.status = MessageStatus.AWAITING_RETRY
+        self.msg1.error_message = "temporary failure"
+        self.msg1.save(update_fields=["status", "error_message"])
+        url = reverse("messaging:my_messages_list")
+        response = self.client.get(url)
+        self.assertContains(response, "Awaiting Retry")
+        self.assertContains(response, "temporary failure")
+
 
 class ProcessOutboundSmsTaskTests(TestCase):
     def setUp(self):

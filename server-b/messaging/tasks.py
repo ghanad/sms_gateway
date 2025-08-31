@@ -108,22 +108,16 @@ def send_sms_with_failover(self, message_id: int):
     message.send_attempts = message.send_attempts + 1
     message.save(update_fields=["status", "send_attempts"])
 
-    envelope = message.provider_response or {}
-    preferred = envelope.get("providers_effective") or []
-    if preferred:
-        qs = SmsProvider.objects.filter(is_active=True, slug__in=preferred)
-        providers = sorted(qs, key=lambda p: preferred.index(p.slug))
-    else:
-        providers = list(
-            SmsProvider.objects.filter(is_active=True).order_by("-priority")
-        )
+    providers = list(
+        SmsProvider.objects.filter(is_active=True).order_by("-priority")
+    )
 
-    last_error = "No active providers available"
+    last_error_message = "No active providers available"
     for provider in providers:
         adapter = get_provider_adapter(provider)
         result = adapter.send_sms(message.recipient, message.text)
         if result.get("error"):
-            last_error = result.get("error")
+            last_error_message = result.get("error")
             continue
 
         message.status = MessageStatus.SENT_TO_PROVIDER
@@ -136,13 +130,12 @@ def send_sms_with_failover(self, message_id: int):
         return
 
     # All providers failed
-    message.error_message = last_error
+    message.error_message = last_error_message
     if self.request.retries < self.max_retries:
         message.status = MessageStatus.AWAITING_RETRY
         message.save(update_fields=["status", "error_message"])
-        schedule = [60, 300, 900, 1800, 3600]
-        countdown = schedule[min(self.request.retries, len(schedule) - 1)]
-        raise self.retry(countdown=countdown)
+        delay = 60 * (2 ** self.request.retries)
+        raise self.retry(countdown=delay)
 
     message.status = MessageStatus.FAILED
     message.save(update_fields=["status", "error_message"])

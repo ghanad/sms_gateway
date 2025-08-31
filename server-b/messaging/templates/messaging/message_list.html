@@ -74,7 +74,12 @@
                         <tr>
                             <td><strong>{{ message.recipient }}</strong></td>
                             <td>{{ message.text|truncatechars:50 }}</td>
-                            <td><span class="pill pill--on">{{ message.get_status_display }}</span></td>
+                            <td>
+                                <span class="pill pill--on">{{ message.get_status_display }}</span>
+                                {% if message.status == 'AWAITING_RETRY' and message.error_message %}
+                                    <div class="error">{{ message.error_message }}</div>
+                                {% endif %}
+                            </td>
                             <td>{{ message.provider.name }}</td>
                             <td>{{ message.sent_at|date:"Y-m-d H:i" }}</td>
                         </tr>
