@@ -18,6 +18,7 @@ COMPOSE_CMD = ["docker", "compose"]
 @pytest.fixture(scope="module", autouse=True)
 def compose_environment():
     subprocess.run(COMPOSE_CMD + ["up", "-d", "--build"], check=True)
+
     start = time.time()
     while time.time() - start < 60:
         try:
@@ -32,6 +33,7 @@ def compose_environment():
         raise RuntimeError("Services did not become ready in time")
     yield
     subprocess.run(COMPOSE_CMD + ["down", "-v"], check=True)
+
 
 
 def _send_request():
