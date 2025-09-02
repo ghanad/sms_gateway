@@ -360,7 +360,7 @@ class SendSmsWithFailoverTaskTests(TestCase):
         adapter1 = MagicMock()
         adapter1.send_sms.return_value = {
             "status": "failure",
-            "type": "permanent",
+            "type": "transient",
             "reason": "oops",
             "raw_response": {},
         }
@@ -453,7 +453,8 @@ class SendSmsWithFailoverTaskTests(TestCase):
 
         self.message.refresh_from_db()
         self.assertEqual(self.message.status, MessageStatus.FAILED)
-        self.assertEqual(self.message.error_message, "fail1; fail2")
+        self.assertEqual(self.message.error_message, "fail1")
+        adapter2.send_sms.assert_not_called()
         mock_publish.assert_called_once_with(self.message)
 
     @patch("messaging.tasks.publish_to_dlq")
@@ -462,24 +463,38 @@ class SendSmsWithFailoverTaskTests(TestCase):
         self.message.initial_envelope = {"providers_effective": ["p2", "p1"]}
         self.message.save(update_fields=["initial_envelope"])
 
-        adapter_order = []
+        call_order: list[str] = []
 
-        def make_adapter(name):
-            adapter = MagicMock()
-            adapter.send_sms.return_value = {
-                "status": "failure",
-                "type": "permanent",
-                "reason": name,
-                "raw_response": {},
-            }
-            adapter_order.append(name)
-            return adapter
+        adapter_p2 = MagicMock()
+        adapter_p2.send_sms.return_value = {
+            "status": "failure",
+            "type": "permanent",
+            "reason": "p2",
+            "raw_response": {},
+        }
+        adapter_p1 = MagicMock()
+        adapter_p1.send_sms.return_value = {
+            "status": "failure",
+            "type": "permanent",
+            "reason": "p1",
+            "raw_response": {},
+        }
 
-        mock_get_adapter.side_effect = [make_adapter("p2"), make_adapter("p1")]
+        def side_effect(provider):
+            call_order.append(provider.slug)
+            if provider.slug == "p2":
+                return adapter_p2
+            if provider.slug == "p1":
+                return adapter_p1
+            raise AssertionError("unexpected provider")
+
+        mock_get_adapter.side_effect = side_effect
 
         send_sms_with_failover.run(self.message.id)
 
-        self.assertEqual(adapter_order, ["p2", "p1"])
+        self.assertEqual(call_order, ["p2"])
+        adapter_p2.send_sms.assert_called_once()
+        adapter_p1.send_sms.assert_not_called()
         mock_publish.assert_called_once_with(self.message)
 
 
