@@ -46,3 +46,5 @@ gha-creds-*.json
 *.rdb
 *.aof
 *.manifest
+# PostgreSQL data
+pgdata/
