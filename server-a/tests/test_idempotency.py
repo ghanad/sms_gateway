@@ -19,15 +19,18 @@ from datetime import datetime, timedelta
 @pytest.fixture
 def mock_settings():
     settings = Settings(
-        SERVICE_NAME="test-server-a",
-        SERVER_A_HOST="0.0.0.0",
-        SERVER_A_PORT=8000,
-        REDIS_URL="redis://localhost:6379/0",
-        RABBITMQ_URL="amqp://guest:guest@localhost:5672/",
+        app_name="test-server-a",
+        redis_url="redis://localhost:6379/0",
+        rabbit_host="localhost",
+        rabbit_port=5672,
+        rabbit_user="guest",
+        rabbit_pass="guest",
+        outbound_sms_exchange="sms_outbound_exchange",
+        outbound_sms_queue="sms_outbound_queue",
+        idempotency_ttl_seconds=10,  # Short TTL for testing
+        heartbeat_interval_seconds=60,
         PROVIDER_GATE_ENABLED=True,
-        IDEMPOTENCY_TTL_SECONDS=10, # Short TTL for testing
         QUOTA_PREFIX="quota",
-        HEARTBEAT_INTERVAL_SECONDS=60,
     )
     return settings
 
@@ -85,7 +88,7 @@ async def test_first_request_stores_response(test_app, mock_redis_client, mock_s
     assert response.status_code == status.HTTP_200_OK
     mock_redis_client.get.assert_called_once_with(f"idem:client_key_1:{idempotency_key}")
     mock_redis_client.set.assert_called_once()
-    mock_redis_client.expire.assert_called_once_with(f"idem:client_key_1:{idempotency_key}", mock_settings.IDEMPOTENCY_TTL_SECONDS)
+    mock_redis_client.expire.assert_called_once_with(f"idem:client_key_1:{idempotency_key}", mock_settings.idempotency_ttl_seconds)
 
     # Verify the stored content
     stored_data = json.loads(mock_redis_client.set.call_args[0][1])
@@ -145,7 +148,7 @@ async def test_second_request_returns_cached_error_response(test_app, mock_redis
     assert response.json() == json.loads(error_body)
     mock_redis_client.get.assert_called_once_with(f"idem:client_key_1:{idempotency_key}")
     mock_redis_client.set.assert_not_called()
-    mock_redis_client.expire.assert_called_once_with(f"idem:client_key_1:{idempotency_key}", mock_settings.IDEMPOTENCY_TTL_SECONDS)
+    mock_redis_client.expire.assert_called_once_with(f"idem:client_key_1:{idempotency_key}", mock_settings.idempotency_ttl_seconds)
 
 @pytest.mark.asyncio
 async def test_request_without_idempotency_key_is_not_cached(test_app, mock_redis_client):
@@ -176,7 +179,7 @@ async def test_idempotency_key_with_different_client_api_key_is_different_key(te
     mock_redis_client.set.assert_called_once_with(
         f"idem:client_key_1:{idempotency_key}",
         json.dumps(json.loads(mock_redis_client.set.call_args[0][1])), # Re-parse to compare content
-        ex=mock_settings.IDEMPOTENCY_TTL_SECONDS,
+        ex=mock_settings.idempotency_ttl_seconds,
         nx=True
     )
     mock_redis_client.set.reset_mock() # Reset mock for next assertion
@@ -212,6 +215,6 @@ async def test_idempotency_key_with_different_client_api_key_is_different_key(te
     mock_redis_client.set.assert_called_once_with(
         f"idem:client_key_2:{idempotency_key}", # Key should be different
         json.dumps(json.loads(mock_redis_client.set.call_args[0][1])),
-        ex=mock_settings.IDEMPOTENCY_TTL_SECONDS,
+        ex=mock_settings.idempotency_ttl_seconds,
         nx=True
     )
