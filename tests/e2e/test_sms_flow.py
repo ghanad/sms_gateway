@@ -8,13 +8,16 @@ import requests
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("RUN_E2E") != "1",
-    reason="E2E tests require docker-compose environment",
+    reason="E2E tests require docker compose environment",
 )
+
+
+COMPOSE_CMD = ["docker", "compose"]
 
 
 @pytest.fixture(scope="module", autouse=True)
 def compose_environment():
-    subprocess.run(["docker-compose", "up", "-d", "--build"], check=True)
+    subprocess.run(COMPOSE_CMD + ["up", "-d", "--build"], check=True)
     start = time.time()
     while time.time() - start < 60:
         try:
@@ -25,10 +28,10 @@ def compose_environment():
             pass
         time.sleep(1)
     else:
-        subprocess.run(["docker-compose", "down", "-v"], check=False)
+        subprocess.run(COMPOSE_CMD + ["down", "-v"], check=False)
         raise RuntimeError("Services did not become ready in time")
     yield
-    subprocess.run(["docker-compose", "down", "-v"], check=True)
+    subprocess.run(COMPOSE_CMD + ["down", "-v"], check=True)
 
 
 def _send_request():
@@ -45,8 +48,7 @@ def _send_request():
 
 
 def _get_message(tracking_id: str) -> dict:
-    cmd = [
-        "docker-compose",
+    cmd = COMPOSE_CMD + [
         "exec",
         "-T",
         "server-b",

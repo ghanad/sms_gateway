@@ -27,6 +27,8 @@ jobs:
 
   e2e-tests:
     runs-on: ubuntu-latest
+    env:
+      RUN_E2E: "1"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,11 +39,11 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest requests
       - name: Start services
-        run: docker-compose up -d --build
+        run: docker compose up -d --build
       - name: Wait for services to be healthy
         run: sleep 30
       - name: Run E2E tests
         run: pytest tests/e2e/
       - name: Stop services
         if: always()
-        run: docker-compose down -v
+        run: docker compose down -v
