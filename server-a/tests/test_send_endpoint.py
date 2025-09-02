@@ -10,7 +10,7 @@ from datetime import datetime
 from app.main import app, http_exception_handler
 from app.schemas import SendSmsRequest, SendSmsResponse, ErrorResponse
 from app.config import Settings, ClientConfig
-from app.auth import ClientContext
+from app.auth import ClientContext, get_client_context
 
 # Apply the exception handler to the test app instance
 app.add_exception_handler(HTTPException, http_exception_handler)
@@ -19,15 +19,18 @@ app.add_exception_handler(HTTPException, http_exception_handler)
 @pytest.fixture
 def mock_settings():
     settings = Settings(
-        SERVICE_NAME="test-server-a",
-        SERVER_A_HOST="0.0.0.0",
-        SERVER_A_PORT=8000,
-        REDIS_URL="redis://localhost:6379/0",
-        RABBITMQ_URL="amqp://guest:guest@localhost:5672/",
+        app_name="test-server-a",
+        redis_url="redis://localhost:6379/0",
+        rabbit_host="localhost",
+        rabbit_port=5672,
+        rabbit_user="guest",
+        rabbit_pass="guest",
+        outbound_sms_exchange="sms_outbound_exchange",
+        outbound_sms_queue="sms_outbound_queue",
+        idempotency_ttl_seconds=10,
+        heartbeat_interval_seconds=60,
         PROVIDER_GATE_ENABLED=True,
-        IDEMPOTENCY_TTL_SECONDS=10,
         QUOTA_PREFIX="test-quota",
-        HEARTBEAT_INTERVAL_SECONDS=60,
     )
     return settings
 
@@ -40,7 +43,13 @@ def mock_dependencies(mock_settings):
          patch('app.rabbit.get_settings', return_value=mock_settings), \
          patch('app.heartbeat.get_settings', return_value=mock_settings):
 
-        mock_get_client_context = AsyncMock(return_value=ClientContext(api_key="client_key_1", user_id=1, username="Test Client 1", is_active=True, daily_quota=100))
+        get_client_context_tracker = MagicMock()
+
+        async def _mock_get_client_context(request: Request, api_key: str | None = None):
+            get_client_context_tracker()
+            ctx = ClientContext(api_key="client_key_1", user_id=1, username="Test Client 1", is_active=True, daily_quota=100)
+            request.state.client = ctx
+            return ctx
         mock_provider_gate_process_providers = MagicMock(return_value=["ProviderA"])
         mock_enforce_daily_quota = AsyncMock()
         mock_publish_sms_message = AsyncMock()
@@ -53,27 +62,30 @@ def mock_dependencies(mock_settings):
         mock_rabbitmq_connection.channel.return_value.__aenter__.return_value = mock_rabbitmq_channel
         mock_rabbitmq_connection.is_closed = False
 
-        with patch('app.main.get_client_context', new=mock_get_client_context), \
-             patch('app.main.provider_gate.process_providers', new=mock_provider_gate_process_providers), \
-             patch('app.main.enforce_daily_quota', new=mock_enforce_daily_quota), \
-             patch('app.main.publish_sms_message', new=mock_publish_sms_message), \
-             patch('app.main.get_redis_client', return_value=mock_redis_client), \
-             patch('app.idempotency.get_redis_client', return_value=mock_redis_client), \
-             patch('app.quota.get_redis_client', return_value=mock_redis_client), \
-             patch('app.rabbit.get_rabbitmq_connection', return_value=mock_rabbitmq_connection), \
-             patch('app.heartbeat.aio_pika.connect_robust', return_value=mock_rabbitmq_connection), \
-             patch('app.main.redis_client', new=mock_redis_client), \
-             patch('app.main.rabbitmq_connection', new=mock_rabbitmq_connection), \
-             patch('app.main.rabbitmq_channel', new=mock_rabbitmq_channel):
-            yield {
-                "get_client_context": mock_get_client_context,
-                "provider_gate_process_providers": mock_provider_gate_process_providers,
-                "enforce_daily_quota": mock_enforce_daily_quota,
-                "publish_sms_message": mock_publish_sms_message,
-                "redis_client": mock_redis_client,
-                "rabbitmq_connection": mock_rabbitmq_connection,
-                "rabbitmq_channel": mock_rabbitmq_channel
-            }
+        app.dependency_overrides[get_client_context] = _mock_get_client_context
+        try:
+            with patch('app.main.provider_gate.process_providers', new=mock_provider_gate_process_providers), \
+                 patch('app.main.enforce_daily_quota', new=mock_enforce_daily_quota), \
+                 patch('app.main.publish_sms_message', new=mock_publish_sms_message), \
+                 patch('app.main.get_redis_client', return_value=mock_redis_client), \
+                 patch('app.idempotency.get_redis_client', return_value=mock_redis_client), \
+                 patch('app.quota.get_redis_client', return_value=mock_redis_client), \
+                 patch('app.rabbit.get_rabbitmq_connection', return_value=mock_rabbitmq_connection), \
+                 patch('app.heartbeat.aio_pika.connect_robust', return_value=mock_rabbitmq_connection), \
+                 patch('app.main.redis_client', new=mock_redis_client), \
+                 patch('app.main.rabbitmq_connection', new=mock_rabbitmq_connection), \
+                 patch('app.main.rabbitmq_channel', new=mock_rabbitmq_channel):
+                yield {
+                    "get_client_context": get_client_context_tracker,
+                    "provider_gate_process_providers": mock_provider_gate_process_providers,
+                    "enforce_daily_quota": mock_enforce_daily_quota,
+                    "publish_sms_message": mock_publish_sms_message,
+                    "redis_client": mock_redis_client,
+                    "rabbitmq_connection": mock_rabbitmq_connection,
+                    "rabbitmq_channel": mock_rabbitmq_channel
+                }
+        finally:
+            app.dependency_overrides.pop(get_client_context, None)
 
 @pytest.mark.asyncio
 async def test_send_sms_success(mock_dependencies):
@@ -138,7 +150,7 @@ async def test_send_sms_idempotency_key_stores_response(mock_dependencies, mock_
     # Verify the key and expiration
     set_args, set_kwargs = mock_dependencies["redis_client"].set.call_args
     assert set_args[0] == f"idem:client_key_1:{idempotency_key}"
-    assert set_kwargs["ex"] == mock_settings.IDEMPOTENCY_TTL_SECONDS
+    assert set_kwargs["ex"] == mock_settings.idempotency_ttl_seconds
 
     # Verify the stored content
     stored_data = json.loads(set_args[1])

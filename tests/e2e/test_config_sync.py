@@ -4,6 +4,10 @@ from uuid import uuid4
 
 import pytest
 import requests
+import shutil
+
+if not shutil.which("docker-compose"):
+    pytest.skip("docker-compose not installed", allow_module_level=True)
 
 
 @pytest.fixture(scope="module", autouse=True)

@@ -26,9 +26,10 @@ async def test_publish_sms_message_publishes_and_closes_connection():
     fixed_time = datetime(2023, 1, 1, 12, 0, 0)
 
     mock_channel = MagicMock()
-    mock_channel.declare_exchange = AsyncMock()
+    mock_exchange = MagicMock()
+    mock_exchange.publish = AsyncMock()
+    mock_channel.declare_exchange = AsyncMock(return_value=mock_exchange)
     mock_channel.declare_queue = AsyncMock()
-    mock_channel.publish = AsyncMock()
     mock_queue = MagicMock()
     mock_queue.bind = AsyncMock()
     mock_channel.declare_queue.return_value = mock_queue
@@ -76,9 +77,8 @@ async def test_publish_sms_message_publishes_and_closes_connection():
     assert kwargs["content_type"] == "application/json"
     assert kwargs["delivery_mode"] == aio_pika.DeliveryMode.PERSISTENT
 
-    mock_channel.publish.assert_called_once_with(
+    mock_exchange.publish.assert_awaited_once_with(
         mock_message.return_value,
-        exchange=RABBITMQ_EXCHANGE_NAME,
         routing_key=RABBITMQ_QUEUE_NAME,
     )
     mock_connection.close.assert_awaited_once()
