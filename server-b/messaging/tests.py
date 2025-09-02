@@ -483,6 +483,286 @@ class SendSmsWithFailoverTaskTests(TestCase):
         mock_publish.assert_called_once_with(self.message)
 
 
+class SmsSendFlowTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("user", password="pass")
+
+    @patch("messaging.tasks.get_provider_adapter")
+    def test_happy_path(self, mock_get_adapter):
+        provider = SmsProvider.objects.create(
+            name="ProviderA",
+            slug="provider-a",
+            send_url="http://example.com/send",
+            balance_url="http://example.com/bal",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+            priority=100,
+        )
+        message = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="12345",
+            text="hello",
+        )
+        adapter = MagicMock()
+        adapter.send_sms.return_value = {
+            "status": "success",
+            "message_id": "mid",
+            "raw_response": {},
+        }
+        mock_get_adapter.return_value = adapter
+
+        with patch("messaging.tasks.send_sms_with_failover.delay") as mock_delay:
+            mock_delay.side_effect = lambda mid: send_sms_with_failover.run(mid)
+            dispatch_pending_messages.run()
+
+        message.refresh_from_db()
+        self.assertEqual(message.status, MessageStatus.SENT_TO_PROVIDER)
+        self.assertEqual(message.provider, provider)
+        self.assertEqual(message.provider_message_id, "mid")
+        adapter.send_sms.assert_called_once_with("12345", "hello")
+
+    @patch("messaging.tasks.get_provider_adapter")
+    def test_simple_failover(self, mock_get_adapter):
+        provider_a = SmsProvider.objects.create(
+            name="ProviderA",
+            slug="provider-a",
+            send_url="http://example.com/a",
+            balance_url="http://example.com/bal",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+            priority=100,
+        )
+        provider_b = SmsProvider.objects.create(
+            name="ProviderB",
+            slug="provider-b",
+            send_url="http://example.com/b",
+            balance_url="http://example.com/bal",
+            default_sender="200",
+            auth_type=AuthType.NONE,
+            priority=90,
+        )
+        message = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="12345",
+            text="hello",
+        )
+        adapter_a = MagicMock()
+        adapter_a.send_sms.return_value = {
+            "status": "failure",
+            "type": "transient",
+            "reason": "temp",
+            "raw_response": {},
+        }
+        adapter_b = MagicMock()
+        adapter_b.send_sms.return_value = {
+            "status": "success",
+            "message_id": "mid2",
+            "raw_response": {},
+        }
+        mock_get_adapter.side_effect = [adapter_a, adapter_b]
+
+        with patch("messaging.tasks.send_sms_with_failover.delay") as mock_delay:
+            mock_delay.side_effect = lambda mid: send_sms_with_failover.run(mid)
+            dispatch_pending_messages.run()
+
+        message.refresh_from_db()
+        self.assertEqual(message.status, MessageStatus.SENT_TO_PROVIDER)
+        self.assertEqual(message.provider, provider_b)
+        adapter_a.send_sms.assert_called_once()
+        adapter_b.send_sms.assert_called_once()
+
+    @patch("messaging.tasks.get_provider_adapter")
+    def test_full_retry_cycle(self, mock_get_adapter):
+        SmsProvider.objects.create(
+            name="ProviderA",
+            slug="provider-a",
+            send_url="http://example.com/a",
+            balance_url="http://example.com/bal",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+            priority=100,
+        )
+        SmsProvider.objects.create(
+            name="ProviderB",
+            slug="provider-b",
+            send_url="http://example.com/b",
+            balance_url="http://example.com/bal",
+            default_sender="200",
+            auth_type=AuthType.NONE,
+            priority=90,
+        )
+        message = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="12345",
+            text="hello",
+        )
+        adapter_a = MagicMock()
+        adapter_a.send_sms.return_value = {
+            "status": "failure",
+            "type": "transient",
+            "reason": "temp1",
+            "raw_response": {},
+        }
+        adapter_b = MagicMock()
+        adapter_b.send_sms.return_value = {
+            "status": "failure",
+            "type": "transient",
+            "reason": "temp2",
+            "raw_response": {},
+        }
+        mock_get_adapter.side_effect = [adapter_a, adapter_b]
+
+        with patch("messaging.tasks.send_sms_with_failover.delay"):
+            dispatch_pending_messages.run()
+
+        original = send_sms_with_failover.request.retries
+        send_sms_with_failover.request.retries = 0
+        try:
+            with patch.object(
+                send_sms_with_failover, "retry", side_effect=Retry(), autospec=True
+            ) as mock_retry:
+                with self.assertRaises(Retry):
+                    send_sms_with_failover.run(message.id)
+        finally:
+            send_sms_with_failover.request.retries = original
+
+        message.refresh_from_db()
+        self.assertEqual(message.status, MessageStatus.AWAITING_RETRY)
+        self.assertEqual(message.error_message, "temp2")
+
+    @patch("messaging.tasks.publish_to_dlq")
+    @patch("messaging.tasks.get_provider_adapter")
+    def test_permanent_failure_fail_fast(self, mock_get_adapter, mock_publish):
+        SmsProvider.objects.create(
+            name="ProviderA",
+            slug="provider-a",
+            send_url="http://example.com/a",
+            balance_url="http://example.com/bal",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+            priority=100,
+        )
+        SmsProvider.objects.create(
+            name="ProviderB",
+            slug="provider-b",
+            send_url="http://example.com/b",
+            balance_url="http://example.com/bal",
+            default_sender="200",
+            auth_type=AuthType.NONE,
+            priority=90,
+        )
+        message = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="12345",
+            text="hello",
+        )
+        adapter_a = MagicMock()
+        adapter_a.send_sms.return_value = {
+            "status": "failure",
+            "type": "permanent",
+            "reason": "blacklisted",
+            "raw_response": {},
+        }
+        adapter_b = MagicMock()
+        adapter_b.send_sms.return_value = {
+            "status": "success",
+            "message_id": "mid",
+            "raw_response": {},
+        }
+        mock_get_adapter.side_effect = [adapter_a, adapter_b]
+
+        with patch("messaging.tasks.send_sms_with_failover.delay"):
+            dispatch_pending_messages.run()
+        send_sms_with_failover.run(message.id)
+
+        message.refresh_from_db()
+        self.assertEqual(message.status, MessageStatus.FAILED)
+        self.assertEqual(message.error_message, "blacklisted")
+        adapter_a.send_sms.assert_called_once()
+        adapter_b.send_sms.assert_not_called()
+        mock_publish.assert_called_once_with(message)
+
+    @patch("messaging.tasks.get_provider_adapter")
+    def test_user_specified_provider_logic(self, mock_get_adapter):
+        provider_a = SmsProvider.objects.create(
+            name="ProviderA",
+            slug="provider-a",
+            send_url="http://example.com/a",
+            balance_url="http://example.com/bal",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+            priority=90,
+        )
+        provider_b = SmsProvider.objects.create(
+            name="ProviderB",
+            slug="provider-b",
+            send_url="http://example.com/b",
+            balance_url="http://example.com/bal",
+            default_sender="200",
+            auth_type=AuthType.NONE,
+            priority=80,
+        )
+        provider_c = SmsProvider.objects.create(
+            name="ProviderC",
+            slug="provider-c",
+            send_url="http://example.com/c",
+            balance_url="http://example.com/bal",
+            default_sender="300",
+            auth_type=AuthType.NONE,
+            priority=100,
+        )
+        message = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="12345",
+            text="hello",
+            initial_envelope={"providers_effective": ["provider-c", "provider-a"]},
+        )
+        send_order: list[str] = []
+
+        def make_result(name, result):
+            def _side_effect(*args, **kwargs):
+                send_order.append(name)
+                return result
+
+            return _side_effect
+
+        adapter_c = MagicMock()
+        adapter_c.send_sms.side_effect = make_result(
+            "C",
+            {"status": "failure", "type": "transient", "reason": "temp", "raw_response": {}},
+        )
+        adapter_a = MagicMock()
+        adapter_a.send_sms.side_effect = make_result(
+            "A", {"status": "success", "message_id": "mid", "raw_response": {}}
+        )
+        adapter_b = MagicMock()
+
+        def fake_get_adapter(provider):
+            if provider.slug == "provider-c":
+                return adapter_c
+            if provider.slug == "provider-a":
+                return adapter_a
+            if provider.slug == "provider-b":
+                return adapter_b
+            raise AssertionError("unexpected provider")
+
+        mock_get_adapter.side_effect = fake_get_adapter
+
+        with patch("messaging.tasks.send_sms_with_failover.delay") as mock_delay:
+            mock_delay.side_effect = lambda mid: send_sms_with_failover.run(mid)
+            dispatch_pending_messages.run()
+
+        message.refresh_from_db()
+        self.assertEqual(message.provider, provider_a)
+        self.assertEqual(message.status, MessageStatus.SENT_TO_PROVIDER)
+        self.assertEqual(send_order, ["C", "A"])
+        adapter_b.send_sms.assert_not_called()
+
 class MessageDetailViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("user", password="pass")

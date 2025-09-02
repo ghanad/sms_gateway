@@ -177,6 +177,14 @@ def send_sms_with_failover(self, message_id: int):
         error_logs.append(reason)
         if result.get("type") == "transient":
             all_failures_were_permanent = False
+            continue
+
+        # Permanent failure - fail fast
+        message.status = MessageStatus.FAILED
+        message.error_message = reason
+        message.save(update_fields=["status", "error_message"])
+        publish_to_dlq(message)
+        return
 
     if sent_successfully:
         return
