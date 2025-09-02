@@ -1,0 +1,47 @@
+name: SMS Flow Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        working-directory: server-b
+        run: pip install -r requirements.txt
+      - name: Run messaging tests
+        working-directory: server-b
+        run: python manage.py test messaging.tests -v 2
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies
+        run: pip install pytest requests
+      - name: Start services
+        run: docker-compose up -d --build
+      - name: Wait for services to be healthy
+        run: sleep 30
+      - name: Run E2E tests
+        run: pytest tests/e2e/
+      - name: Stop services
+        if: always()
+        run: docker-compose down -v
