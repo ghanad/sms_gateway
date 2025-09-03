@@ -7,7 +7,7 @@ import requests
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("RUN_E2E") != "1",
-    reason="E2E tests require docker-compose environment",
+    reason="E2E tests require docker compose environment",
 )
 
 

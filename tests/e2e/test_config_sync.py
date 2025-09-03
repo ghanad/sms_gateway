@@ -8,7 +8,7 @@ import requests
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("RUN_E2E") != "1",
-    reason="E2E tests require docker-compose environment",
+    reason="E2E tests require docker compose environment",
 )
 
 
@@ -29,7 +29,7 @@ def _send_request(provider_name: str) -> requests.Response:
 def test_real_time_sync_of_disabled_provider():
     provider_name = "ProviderA"
     disable_cmd = [
-        "docker-compose",
+        "docker compose",
         "exec",
         "-T",
         "server-b",
@@ -50,7 +50,7 @@ def test_real_time_sync_of_disabled_provider():
     body = response.json()
     assert body.get("error_code") == "PROVIDER_DISABLED"
     enable_cmd = [
-        "docker-compose",
+        "docker compose",
         "exec",
         "-T",
         "server-b",
@@ -69,7 +69,7 @@ def test_real_time_sync_of_disabled_provider():
 
 def test_startup_recovery_from_file_cache():
     provider_name = "ProviderA"
-    subprocess.run(["docker-compose", "restart", "server-a"], check=True)
+    subprocess.run(["docker compose", "restart", "server-a"], check=True)
     time.sleep(10)
     response = _send_request(provider_name)
     assert response.status_code == 409
