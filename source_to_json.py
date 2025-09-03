@@ -64,6 +64,7 @@ if __name__ == '__main__':
         # Version control
         '.git/*',
         '.github/*',
+        'pgdata/*',
 
         # Python virtual environment and cache
         'venv',
