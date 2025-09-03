@@ -46,6 +46,7 @@ def _get_message(tracking_id: str) -> dict:
 
 
 def test_successful_end_to_end_flow():
+    time.sleep(15)
     requests.post("http://localhost:5005/config", json={"mode": "success"}, timeout=5)
     tracking_id = _send_request()
     time.sleep(20)
@@ -56,6 +57,7 @@ def test_successful_end_to_end_flow():
 
 
 def test_full_retry_and_recovery():
+    time.sleep(15)
     requests.post("http://localhost:5005/config", json={"mode": "transient"}, timeout=5)
     tracking_id = _send_request()
     time.sleep(15)
