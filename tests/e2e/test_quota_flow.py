@@ -1,24 +1,25 @@
 # tests/e2e/test_quota_flow.py
 
 import os
-import time
 import pytest
 import requests
 from uuid import uuid4
 
-# Import the helper file created in the previous step
-from helpers import clear_redis_keys
+# Import helper functions from the shared helpers file
+from helpers import clear_redis_keys, wait_for_server_a_ready
 
-# Run these tests only in the E2E environment
+# This line ensures that these tests only run when the RUN_E2E environment variable is set to 1
 pytestmark = pytest.mark.skipif(
     os.environ.get("RUN_E2E") != "1",
     reason="E2E tests require docker compose environment",
 )
 
-# Initial test user settings
-# These values must match what is defined for CLIENT_CONFIG in your .env file
+# Test user settings
+# These values should match what is defined in your .env file for CLIENT_CONFIG
 API_KEY = "api_key_for_service_A"
-DAILY_QUOTA = 100  # Assume the quota for this user is 100
+# For faster tests, this value should be set to a small number (e.g., 5)
+# in your server-a/.env file during the CI run.
+DAILY_QUOTA = 5
 
 def _send_quota_request(api_key=API_KEY):
     """Sends a simple request to test the quota."""
@@ -31,28 +32,30 @@ def _send_quota_request(api_key=API_KEY):
 
 def test_daily_quota_enforcement():
     """
-    Comprehensive test of the daily quota mechanism:
-    1. First, it consumes the quota.
-    2. Then, it verifies that additional requests are rejected with a 429 error.
+    Tests the full daily quota mechanism by:
+    1. Waiting for the system to be fully ready.
+    2. Consuming the entire quota.
+    3. Verifying that the next request is correctly rejected.
     """
-    # Step 1: Clear previous state to ensure test isolation
-    # Redis key pattern is based on QUOTA_PREFIX setting in server-a/.env
+    # Step 1: Wait for the system to be fully initialized and synced
+    wait_for_server_a_ready()
+
+    # Step 2: Clear any previous Redis state to ensure the test is isolated
     clear_redis_keys(f"quota:{API_KEY}:*")
     
-    # Step 2: Send requests up to the daily quota limit
+    # Step 3: Send requests up to the daily quota limit
     print(f"Sending {DAILY_QUOTA} requests to consume the daily quota...")
     for i in range(DAILY_QUOTA):
         resp = _send_quota_request()
-        # Verify that each request is successfully accepted
         assert resp.status_code == 202, f"Request {i+1} failed with status {resp.status_code}: {resp.text}"
 
     print("Successfully consumed the daily quota.")
 
-    # Step 3: Send one more request that should be rejected
+    # Step 4: Send one additional request that should be rejected
     print("Sending one more request, which should be rejected...")
     final_resp = _send_quota_request()
 
-    # Step 4: Verify 429 error
+    # Step 5: Verify the 429 Too Many Requests error
     assert final_resp.status_code == 429, f"Expected status 429 but got {final_resp.status_code}"
     
     error_data = final_resp.json()
