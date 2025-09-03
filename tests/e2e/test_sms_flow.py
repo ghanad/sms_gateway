@@ -4,7 +4,7 @@ import time
 import json
 import pytest
 import requests
-from requests.exceptions import HTTPError
+from requests.exceptions import RequestException
 
 # This line ensures that these tests only run when the RUN_E2E environment variable is set to 1
 pytestmark = pytest.mark.skipif(
@@ -15,39 +15,33 @@ pytestmark = pytest.mark.skipif(
 
 def wait_for_server_a_ready(max_retries=10, delay_seconds=8):
     """
-    Continuously sends requests to Server A until it receives a successful
-    response instead of a 503. This function ensures that the initial
-    synchronization from server-b has completed.
+    Continuously polls Server A until it's ready and has received its configuration from Server B.
+    Success is defined as receiving any status code other than 503 (Service Unavailable).
     """
     print("Waiting for Server A to become ready and sync with Server B...")
     for i in range(max_retries):
         try:
-            # Use a valid API key to check for readiness
             headers = {"API-Key": "api_key_for_service_A"}
             payload = {"to": "+15555550100", "text": "readiness check"}
-
-            # We expect this request to initially return a 503
-            resp = requests.post(
+            
+            response = requests.post(
                 "http://localhost:8001/api/v1/sms/send", json=payload, headers=headers, timeout=5
             )
 
-            # If a 503 error did not occur, it means the server is ready
-            resp.raise_for_status()
-
-            print("Server A is ready!")
-            return
-        except HTTPError as e:
-            if e.response and e.response.status_code == 503:
-                print(f"Attempt {i + 1}/{max_retries}: Server A is not ready yet (503). Retrying in {delay_seconds}s...")
-                time.sleep(delay_seconds)
+            if response.status_code != 503:
+                print(f"Server A is ready! (Received status code: {response.status_code})")
+                # We can even check for a successful code here if needed
+                response.raise_for_status() 
+                return
             else:
-                # If any other error occurs, fail the test immediately
-                pytest.fail(f"Received an unexpected error while waiting for Server A: {e}")
-        except requests.exceptions.RequestException as e:
-            print(f"Attempt {i + 1}/{max_retries}: Could not connect to Server A. Retrying in {delay_seconds}s...")
-            time.sleep(delay_seconds)
+                 print(f"Attempt {i + 1}/{max_retries}: Server A is not ready yet (503). Retrying in {delay_seconds}s...")
+                 time.sleep(delay_seconds)
 
-    pytest.fail("Server A did not become ready within the specified timeout.")
+        except RequestException as e:
+            print(f"Attempt {i + 1}/{max_retries}: Could not connect to Server A ({e}). Retrying in {delay_seconds}s...")
+            time.sleep(delay_seconds)
+            
+    pytest.fail("Server A did not become ready (did not stop returning 503) within the specified timeout.")
 
 
 def _send_request():
@@ -108,7 +102,7 @@ def test_successful_end_to_end_flow():
     
     # Check the final status of the message in the database
     message = _get_message(tracking_id)
-    assert message["status"] == "SENT" # "SENT" is an alias for "SENT_TO_PROVIDER"
+    assert message["status"] == "SENT"
     
     # Check the mock provider's logs
     logs = requests.get("http://localhost:5005/logs", timeout=5).json()
