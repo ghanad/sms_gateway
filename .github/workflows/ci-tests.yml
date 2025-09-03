@@ -2,9 +2,11 @@ name: CI Tests
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   run-integration-tests:
@@ -29,7 +31,7 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest requests
       - name: Start services
-        run: docker-compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
       - name: Wait for services
         run: |
           python - <<'PY'
@@ -48,7 +50,7 @@ else:
 PY
       - name: Initialize test data
         run: |
-          docker-compose exec -T server-b python manage.py shell <<'PY'
+          docker compose exec -T server-b python manage.py shell <<'PY'
 from django.contrib.auth.models import User
 from user_management.models import Profile
 from providers.models import SmsProvider, AuthType
@@ -72,4 +74,4 @@ PY
         run: RUN_E2E=1 pytest tests/e2e/
       - name: Teardown
         if: always()
-        run: docker-compose -f docker-compose.yml -f docker-compose.test.yml down -v
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml down -v
