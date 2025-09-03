@@ -51,7 +51,8 @@ def test_real_time_sync_of_disabled_provider():
     body = response.json()
     assert body.get("error_code") == "PROVIDER_DISABLED"
     enable_cmd = [
-        "docker compose",
+        "docker", 
+        "compose",
         "exec",
         "-T",
         "server-b",
@@ -70,7 +71,7 @@ def test_real_time_sync_of_disabled_provider():
 
 def test_startup_recovery_from_file_cache():
     provider_name = "ProviderA"
-    subprocess.run(["docker compose", "restart", "server-a"], check=True)
+    subprocess.run(["docker", "compose", "restart", "server-a"], check=True)
     time.sleep(10)
     response = _send_request(provider_name)
     assert response.status_code == 409
