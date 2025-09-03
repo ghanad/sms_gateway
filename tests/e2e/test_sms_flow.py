@@ -89,20 +89,24 @@ def test_successful_end_to_end_flow():
     """Tests a complete successful end-to-end scenario."""
     wait_for_server_a_ready()
 
-    # Configure the mock provider for a successful response and reset logs
+    # Wait for the in-flight 'readiness check' message to be fully processed.
+    time.sleep(15)
+
+    # Now, configure the mock provider for a successful response AND reset its logs.
+    # This clears the log from the readiness check.
     requests.post("http://localhost:5005/config", json={"mode": "success"}, timeout=5)
 
-    # Send the SMS
+    # The system is now in a clean state. Send the actual test SMS.
     tracking_id = _send_request()
 
-    # We wait for the message to be processed in the queue
+    # Wait for the test message to be processed.
     time.sleep(20)
 
-    # Check the final status of the message in the database
+    # Check the final status of the message in the database.
     message = _get_message(tracking_id)
     assert message["status"] == "SENT"
 
-    # Check the mock provider's logs
+    # Check the mock provider's logs, which should now only contain the test message.
     logs = requests.get("http://localhost:5005/logs", timeout=5).json()
     assert len(logs) == 1
 
@@ -111,26 +115,29 @@ def test_full_retry_and_recovery():
     """Tests the full retry mechanism in case of a transient failure."""
     wait_for_server_a_ready()
 
-    # Configure the mock provider for a transient error and reset logs
-    requests.post("http://localhost:5005/config", json={"mode": "transient"}, timeout=5)
-
-    # Send the SMS
-    tracking_id = _send_request()
-
-    # We wait for the first failed attempt to be registered
+    # Wait for the in-flight 'readiness check' message to be fully processed.
     time.sleep(15)
 
-    # Check that the message status has changed to AWAITING_RETRY
+    # Configure the mock provider for a transient error and reset its logs.
+    requests.post("http://localhost:5005/config", json={"mode": "transient"}, timeout=5)
+
+    # Send the SMS.
+    tracking_id = _send_request()
+
+    # Wait for the first failed attempt to be registered.
+    time.sleep(15)
+
+    # Check that the message status has changed to AWAITING_RETRY.
     message = _get_message(tracking_id)
     assert message["status"] == "AWAITING_RETRY"
     assert message["error"] is not None
 
-    # Reconfigure the mock provider for a successful response
+    # Reconfigure the mock provider for a successful response.
     requests.post("http://localhost:5005/config", json={"mode": "success"}, timeout=5)
 
-    # We wait for Celery to perform the retry (more time is needed due to backoff)
+    # Wait for Celery to perform the retry (more time is needed due to backoff).
     time.sleep(65)
 
-    # Check the final status of the message after a successful retry
+    # Check the final status of the message after a successful retry.
     message = _get_message(tracking_id)
     assert message["status"] == "SENT"
