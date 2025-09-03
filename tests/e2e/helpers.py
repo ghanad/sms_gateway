@@ -51,3 +51,26 @@ def clear_redis_keys(pattern):
     
     subprocess.run(cmd, capture_output=True, text=True, check=False) # Use check=False to avoid errors if no keys are found
     print(f"Cleared Redis keys with pattern: {pattern}")
+
+def setup_test_user(api_key, daily_quota, is_staff=False):
+    """
+    Creates or updates a user in server-b's database with a specific API key and quota.
+    This ensures the state is correct before tests run.
+    """
+    print(f"Setting up test user: api_key={api_key}, daily_quota={daily_quota}")
+    
+    command_to_run = (
+        "from django.contrib.auth.models import User; "
+        "from user_management.models import Profile; "
+        f"user, created = User.objects.update_or_create(username='{api_key}', defaults={{'is_staff': {is_staff}}}); "
+        "profile, p_created = Profile.objects.update_or_create(user=user, defaults={'api_key': user.username, 'daily_quota': {daily_quota}});"
+        "print(f'User {{user.username}} configured.')"
+    )
+
+    cmd = [
+        "docker", "compose", "exec", "-T", "server-b",
+        "python", "manage.py", "shell",
+        "--command", command_to_run
+    ]
+    
+    subprocess.run(cmd, capture_output=True, text=True, check=True)

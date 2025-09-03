@@ -5,20 +5,14 @@ import pytest
 import requests
 from uuid import uuid4
 
-# Import helper functions from the shared helpers file
-from helpers import clear_redis_keys, wait_for_server_a_ready
+from helpers import clear_redis_keys, wait_for_server_a_ready, setup_test_user
 
-# This line ensures that these tests only run when the RUN_E2E environment variable is set to 1
 pytestmark = pytest.mark.skipif(
     os.environ.get("RUN_E2E") != "1",
     reason="E2E tests require docker compose environment",
 )
 
-# Test user settings
-# These values should match what is defined in your .env file for CLIENT_CONFIG
-API_KEY = "api_key_for_service_A"
-# For faster tests, this value should be set to a small number (e.g., 5)
-# in your server-a/.env file during the CI run.
+API_KEY = "e2e_quota_test_user"
 DAILY_QUOTA = 5
 
 def _send_quota_request(api_key=API_KEY):
@@ -32,18 +26,14 @@ def _send_quota_request(api_key=API_KEY):
 
 def test_daily_quota_enforcement():
     """
-    Tests the full daily quota mechanism by:
-    1. Waiting for the system to be fully ready.
-    2. Consuming the entire quota.
-    3. Verifying that the next request is correctly rejected.
+    Tests the full daily quota mechanism.
     """
-    # Step 1: Wait for the system to be fully initialized and synced
+    setup_test_user(api_key=API_KEY, daily_quota=DAILY_QUOTA)
+
     wait_for_server_a_ready()
 
-    # Step 2: Clear any previous Redis state to ensure the test is isolated
     clear_redis_keys(f"quota:{API_KEY}:*")
     
-    # Step 3: Send requests up to the daily quota limit
     print(f"Sending {DAILY_QUOTA} requests to consume the daily quota...")
     for i in range(DAILY_QUOTA):
         resp = _send_quota_request()
@@ -51,11 +41,9 @@ def test_daily_quota_enforcement():
 
     print("Successfully consumed the daily quota.")
 
-    # Step 4: Send one additional request that should be rejected
     print("Sending one more request, which should be rejected...")
     final_resp = _send_quota_request()
 
-    # Step 5: Verify the 429 Too Many Requests error
     assert final_resp.status_code == 429, f"Expected status 429 but got {final_resp.status_code}"
     
     error_data = final_resp.json()
