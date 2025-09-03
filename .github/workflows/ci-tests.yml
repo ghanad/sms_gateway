@@ -30,6 +30,10 @@ jobs:
           python-version: '3.11'
       - name: Install test dependencies
         run: pip install pytest requests
+      - name: Rename .env.example to .env in server-a
+        run: mv server-a/.env.example server-a/.env
+      - name: Rename .env.example to .env in server-b
+        run: mv server-b/.env.example server-b/.env
       - name: Start services
         run: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
       - name: Wait for services
