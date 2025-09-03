@@ -26,7 +26,7 @@ def _send_request():
 
 def _get_message(tracking_id: str) -> dict:
     cmd = [
-        "docker-compose",
+        "docker compose",
         "exec",
         "-T",
         "server-b",
