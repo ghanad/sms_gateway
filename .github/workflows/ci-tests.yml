@@ -1,0 +1,81 @@
+name: CI Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  run-integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r server-b/requirements.txt
+      - name: Run Django tests
+        run: python server-b/manage.py test messaging
+
+  run-e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test dependencies
+        run: pip install pytest requests
+      - name: Rename .env.example to .env in server-a
+        run: mv server-a/.env.example server-a/.env
+      - name: Rename .env.example to .env in server-b
+        run: mv server-b/.env.example server-b/.env
+      - name: Start services
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
+      - name: Wait for services
+        run: |
+          python - <<'PY'
+          import time, requests
+          start = time.time()
+          url = 'http://localhost:8001/readyz'
+          while time.time() - start < 60:
+              try:
+                  if requests.get(url, timeout=5).status_code == 200:
+                      break
+              except Exception:
+                  pass
+              time.sleep(1)
+          else:
+              raise SystemExit('Services did not become ready in time')
+          PY
+      - name: Initialize test data
+        run: |
+          docker compose exec -T server-b python manage.py shell <<'PY'
+          from django.contrib.auth.models import User
+          from user_management.models import Profile
+          from providers.models import SmsProvider, AuthType
+          from core.state_broadcaster import publish_full_state
+          u, _ = User.objects.get_or_create(id=1, defaults={'username': 'bootstrap_user'})
+          Profile.objects.update_or_create(user=u, defaults={'api_key': 'api_key_for_service_A', 'daily_quota': 1000})
+          SmsProvider.objects.update_or_create(
+              slug='provider-a',
+              defaults={
+                  'name': 'ProviderA',
+                  'send_url': 'http://mock-provider-api:8000/send',
+                  'balance_url': 'http://mock-provider-api:8000/balance',
+                  'default_sender': '100',
+                  'auth_type': AuthType.NONE,
+                  'priority': 100,
+              },
+          )
+          publish_full_state()
+          PY
+      - name: Run E2E tests
+        run: RUN_E2E=1 pytest tests/e2e/
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml down -v
