@@ -29,7 +29,8 @@ def _send_request(provider_name: str) -> requests.Response:
 def test_real_time_sync_of_disabled_provider():
     provider_name = "ProviderA"
     disable_cmd = [
-        "docker compose",
+        "docker",
+        "compose",
         "exec",
         "-T",
         "server-b",
