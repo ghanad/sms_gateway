@@ -1,33 +1,15 @@
+import os
 import subprocess
 import time
 from uuid import uuid4
 
 import pytest
 import requests
-import shutil
 
-if not shutil.which("docker-compose"):
-    pytest.skip("docker-compose not installed", allow_module_level=True)
-
-
-@pytest.fixture(scope="module", autouse=True)
-def compose_environment():
-    """Spin up the docker-compose environment for the test module."""
-    subprocess.run(["docker-compose", "up", "-d", "--build"], check=True)
-    # Wait for services to come up
-    start = time.time()
-    while time.time() - start < 60:
-        try:
-            resp = requests.get("http://localhost:8001/readyz", timeout=5)
-            if resp.status_code == 200:
-                break
-        except Exception:
-            pass
-        time.sleep(1)
-    else:
-        raise RuntimeError("Services did not become ready in time")
-    yield
-    subprocess.run(["docker-compose", "down", "-v"], check=True)
+pytestmark = pytest.mark.skipif(
+    os.environ.get("RUN_E2E") != "1",
+    reason="E2E tests require docker-compose environment",
+)
 
 
 def _send_request(provider_name: str) -> requests.Response:

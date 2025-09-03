@@ -10,7 +10,7 @@ django.setup()
 from celery.exceptions import Retry
 from django.contrib.auth.models import User
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from messaging.models import Message, MessageStatus, MessageAttemptLog, AttemptStatus
@@ -498,6 +498,7 @@ class SendSmsWithFailoverTaskTests(TestCase):
         mock_publish.assert_called_once_with(self.message)
 
 
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class SmsSendFlowTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("user", password="pass")

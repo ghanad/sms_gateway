@@ -1,0 +1,6 @@
+services:
+  mock-provider-api:
+    build:
+      context: ./tests/mock_provider
+    ports:
+      - "5005:8000"
