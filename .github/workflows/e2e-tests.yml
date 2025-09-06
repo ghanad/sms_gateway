@@ -1,34 +1,98 @@
-name: E2E Tests
+# .github/workflows/e2e-tests.yml
+
+name: End-to-End Tests
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  e2e-tests:
+  e2e-test:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
+      - name: Set up Docker Compose
+        uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Install test dependencies
-        run: pip install pytest requests
+      - name: Clean up previous run and ensure a clean slate
+        run: |
+          # This is the crucial step to prevent database state conflicts.
+          # It forcefully removes all services, networks, AND volumes from the previous run.
+          docker-compose down -v --remove-orphans
 
-      - name: Start services
-        run: docker compose up -d --build
-
+      - name: Build and start services
+        run: |
+          # Copy the .env.example file to .env for docker-compose to use.
+          # For CI, you might want to create a dedicated .env.ci file instead.
+          cp .env.example .env
+          
+          # For the quota test to run faster, we modify the .env file in the CI environment.
+          # This changes the daily_quota from 1000 to 5 for the test user.
+          echo "Updating daily_quota for faster tests..."
+          sed -i 's/\"daily_quota\": 1000/\"daily_quota\": 5/g' .env
+          
+          # Start all services in the background.
+          docker-compose up --build -d
+      
       - name: Wait for services to be healthy
-        run: sleep 30
+        run: |
+          echo "Waiting for all services to become healthy..."
+          # This is a robust way to wait, instead of a fixed `sleep`.
+          # It checks the health status defined in your docker-compose.yml.
+          # Increased timeout to 3 minutes for safety.
+          timeout 180s bash -c ' \
+            until docker-compose ps -q server-a &>/dev/null && [[ "$(docker-compose ps -q server-a | xargs docker inspect -f "{{.State.Health.Status}}")" == "healthy" ]]; do \
+              echo "Waiting for server-a..."; sleep 5; \
+            done && \
+            until docker-compose ps -q server-b &>/dev/null && [[ "$(docker-compose ps -q server-b | xargs docker inspect -f "{{.State.Health.Status}}")" == "healthy" ]]; do \
+              echo "Waiting for server-b..."; sleep 5; \
+            done'
+          echo "All core services are healthy. Final check:"
+          docker-compose ps
 
-      - name: Run E2E tests
-        run: pytest tests/e2e/
+      - name: Set up Python for test runner
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Stop services
-        if: always()
-        run: docker compose down -v
+      - name: Install Python test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest requests
+
+      - name: Run End-to-End tests
+        env:
+          # This environment variable activates the pytest skip condition.
+          RUN_E2E: "1"
+        run: |
+          # This will run all tests inside the tests/e2e/ directory.
+          pytest tests/e2e/
+
+      - name: Show service logs on failure for debugging
+        if: failure()
+        run: |
+          echo "==== Server-A Logs ===="
+          docker-compose logs --tail="200" server-a
+          
+          echo "==== Server-B Logs ===="
+          docker-compose logs --tail="200" server-b
+          
+          echo "==== RabbitMQ Logs ===="
+          docker-compose logs --tail="200" rabbitmq
+          
+          echo "==== PostgreSQL Logs ===="
+          docker-compose logs --tail="200" postgres
+
+      - name: Stop and clean up services
+        if: always() # This step runs whether the tests succeed or fail.
+        run: |
+          echo "Tearing down the test environment..."
+          docker-compose down -v --remove-orphans
