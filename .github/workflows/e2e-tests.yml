@@ -26,11 +26,11 @@ jobs:
         run: |
           # This is the crucial step to prevent database state conflicts.
           # It forcefully removes all services, networks, AND volumes from the previous run.
-          docker-compose down -v --remove-orphans
+          docker compose down -v --remove-orphans
 
       - name: Build and start services
         run: |
-          # Copy the .env.example file to .env for docker-compose to use.
+          # Copy the .env.example file to .env for docker compose to use.
           # For CI, you might want to create a dedicated .env.ci file instead.
           cp .env.example .env
           
@@ -40,23 +40,23 @@ jobs:
           sed -i 's/\"daily_quota\": 1000/\"daily_quota\": 5/g' .env
           
           # Start all services in the background.
-          docker-compose up --build -d
+          docker compose up --build -d
       
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for all services to become healthy..."
           # This is a robust way to wait, instead of a fixed `sleep`.
-          # It checks the health status defined in your docker-compose.yml.
+          # It checks the health status defined in your docker compose.yml.
           # Increased timeout to 3 minutes for safety.
           timeout 180s bash -c ' \
-            until docker-compose ps -q server-a &>/dev/null && [[ "$(docker-compose ps -q server-a | xargs docker inspect -f "{{.State.Health.Status}}")" == "healthy" ]]; do \
+            until docker compose ps -q server-a &>/dev/null && [[ "$(docker compose ps -q server-a | xargs docker inspect -f "{{.State.Health.Status}}")" == "healthy" ]]; do \
               echo "Waiting for server-a..."; sleep 5; \
             done && \
-            until docker-compose ps -q server-b &>/dev/null && [[ "$(docker-compose ps -q server-b | xargs docker inspect -f "{{.State.Health.Status}}")" == "healthy" ]]; do \
+            until docker compose ps -q server-b &>/dev/null && [[ "$(docker compose ps -q server-b | xargs docker inspect -f "{{.State.Health.Status}}")" == "healthy" ]]; do \
               echo "Waiting for server-b..."; sleep 5; \
             done'
           echo "All core services are healthy. Final check:"
-          docker-compose ps
+          docker compose ps
 
       - name: Set up Python for test runner
         uses: actions/setup-python@v5
@@ -80,19 +80,19 @@ jobs:
         if: failure()
         run: |
           echo "==== Server-A Logs ===="
-          docker-compose logs --tail="200" server-a
+          docker compose logs --tail="200" server-a
           
           echo "==== Server-B Logs ===="
-          docker-compose logs --tail="200" server-b
+          docker compose logs --tail="200" server-b
           
           echo "==== RabbitMQ Logs ===="
-          docker-compose logs --tail="200" rabbitmq
+          docker compose logs --tail="200" rabbitmq
           
           echo "==== PostgreSQL Logs ===="
-          docker-compose logs --tail="200" postgres
+          docker compose logs --tail="200" postgres
 
       - name: Stop and clean up services
         if: always() # This step runs whether the tests succeed or fail.
         run: |
           echo "Tearing down the test environment..."
-          docker-compose down -v --remove-orphans
+          docker compose down -v --remove-orphans
