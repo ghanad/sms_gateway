@@ -58,12 +58,12 @@ def setup_test_user(api_key, daily_quota, is_staff=False):
     This ensures the state is correct before tests run.
     """
     print(f"Setting up test user: api_key={api_key}, daily_quota={daily_quota}")
-    
+
     command_to_run = (
         "from django.contrib.auth.models import User; "
         "from user_management.models import Profile; "
         f"user, created = User.objects.update_or_create(username='{api_key}', defaults={{'is_staff': {is_staff}}}); "
-        "profile, p_created = Profile.objects.update_or_create(user=user, defaults={'api_key': user.username, 'daily_quota': {daily_quota}});"
+        f"profile, p_created = Profile.objects.update_or_create(user=user, defaults={{'api_key': user.username, 'daily_quota': {daily_quota}}});"
         "print(f'User {{user.username}} configured.')"
     )
 
