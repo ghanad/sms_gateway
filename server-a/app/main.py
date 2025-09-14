@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from typing import List, Optional
 from uuid import uuid4, UUID
 import dataclasses
-import os # Import os module
+import os
 
 import aio_pika
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Response, Body
@@ -97,18 +97,21 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(start_heartbeat_task())
     logger.info("Heartbeat task started.")
 
-    # Warm caches from local file before starting consumer
+    # Warm caches from local file or environment variables before starting consumer
     if load_state_from_file():
         logger.info("Configuration cache warmed from local file.")
     else:
-        logger.warning("No valid configuration cache found. Attempting to load from environment variables.")
+        logger.warning("No valid local cache file found. Attempting to load from environment variables.")
         try:
             client_config = json.loads(settings.CLIENT_CONFIG)
             providers_config = json.loads(settings.PROVIDERS_CONFIG)
-            initial_state = {"users": client_config, "providers": providers_config}
-            apply_state(initial_state)
-            save_state_to_file(initial_state) # Persist for subsequent restarts
-            logger.info("Successfully loaded and applied initial config from environment.")
+            if client_config and providers_config:
+                initial_state = {"users": client_config, "providers": providers_config}
+                apply_state(initial_state)
+                save_state_to_file(initial_state) # Persist for subsequent restarts
+                logger.info("Successfully loaded and applied initial config from environment.")
+            else:
+                logger.warning("Initial configs in environment are empty. Waiting for state broadcast.")
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse initial config from environment: {e}. Server will start with empty config and wait for broadcast.")
 
@@ -126,6 +129,7 @@ async def lifespan(app: FastAPI):
     if redis_client:
         await redis_client.close()
         logger.info("Redis client closed.")
+
 
 def custom_json_serializer(obj):
     if isinstance(obj, datetime):

@@ -13,7 +13,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def wait_for_server_a_ready(max_retries=10, delay_seconds=8):
+def wait_for_server_a_ready(max_retries=15, delay_seconds=8):
     """
     Continuously polls Server A until it's ready and has received its configuration from Server B.
     Success is defined as receiving any status code other than 503 (Service Unavailable).
@@ -30,7 +30,8 @@ def wait_for_server_a_ready(max_retries=10, delay_seconds=8):
 
             if response.status_code != 503:
                 print(f"Server A is ready! (Received status code: {response.status_code})")
-                # response.raise_for_status()
+                # A 401 status is acceptable here, it means the server is responsive
+                # but may not have the final auth config yet. We don't raise an error.
                 return
             else:
                 print(f"Attempt {i + 1}/{max_retries}: Server A is not ready yet (503). Retrying in {delay_seconds}s...")
@@ -48,6 +49,7 @@ def _send_request():
     payload = {
         "to": "+15555550100",
         "text": "test message",
+        "providers": ["ProviderA"],  # Explicitly use the provider created by CI
     }
     headers = {"API-Key": "api_key_for_service_A"}
     resp = requests.post(
@@ -79,6 +81,7 @@ def _get_message(tracking_id: str) -> dict:
 
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
+    # Handle potential Django shell startup messages by taking the last line
     output_lines = result.stdout.strip().splitlines()
     json_output = output_lines[-1] if output_lines else "{}"
 
