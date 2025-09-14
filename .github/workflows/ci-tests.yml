@@ -54,25 +54,26 @@ jobs:
           PY
       - name: Initialize test data
         run: |
-          docker compose exec -T server-b python manage.py shell -c "
-          from providers.models import SmsProvider, ProviderType
-
+          docker compose exec -T server-b python manage.py shell <<'PY'
+          from django.contrib.auth.models import User
+          from user_management.models import Profile
+          from providers.models import SmsProvider, AuthType
+          from core.state_broadcaster import publish_full_state
+          u, _ = User.objects.get_or_create(id=1, defaults={'username': 'bootstrap_user'})
+          Profile.objects.update_or_create(user=u, defaults={'api_key': 'api_key_for_service_A', 'daily_quota': 1000})
           SmsProvider.objects.update_or_create(
-              name='Magfa-Default',
+              slug='provider-a',
               defaults={
-                  'slug': 'magfa-default',
-                  'provider_type': ProviderType.MAGFA,
+                  'name': 'ProviderA',
                   'send_url': 'http://mock-provider-api:8000/send',
                   'balance_url': 'http://mock-provider-api:8000/balance',
-                  'default_sender': '3000991',
-                  'is_active': True,
+                  'default_sender': '100',
+                  'auth_type': AuthType.NONE,
                   'priority': 100,
-                  'auth_type': 'none',
-                  'auth_config': {}
-              }
+              },
           )
-          print('Test provider data initialized successfully.')
-          "
+          publish_full_state()
+          PY
       - name: Run E2E tests
         run: RUN_E2E=1 pytest tests/e2e/
       - name: Teardown
