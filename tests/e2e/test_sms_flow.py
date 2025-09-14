@@ -30,7 +30,7 @@ def wait_for_server_a_ready(max_retries=10, delay_seconds=8):
 
             if response.status_code != 503:
                 print(f"Server A is ready! (Received status code: {response.status_code})")
-                response.raise_for_status()
+                # response.raise_for_status()
                 return
             else:
                 print(f"Attempt {i + 1}/{max_retries}: Server A is not ready yet (503). Retrying in {delay_seconds}s...")

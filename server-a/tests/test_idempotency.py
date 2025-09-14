@@ -7,12 +7,14 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from uuid import uuid4
 import asyncio
+import dataclasses
 
 from redis.asyncio import Redis
 
 from app.idempotency import idempotency_middleware, get_redis_client
 from app.config import Settings
 from app.schemas import SendSmsResponse, ErrorResponse
+from app.main import custom_json_serializer
 from datetime import datetime, timedelta
 
 # Mock settings for testing
@@ -124,11 +126,11 @@ async def test_second_request_returns_cached_success_response(test_app, mock_red
 @pytest.mark.asyncio
 async def test_second_request_returns_cached_error_response(test_app, mock_redis_client, mock_settings):
     idempotency_key = "test-key-3"
-    error_body = ErrorResponse(
+    error_body = json.dumps(dataclasses.asdict(ErrorResponse(
         error_code="INVALID_PAYLOAD",
         message="Cached error",
         tracking_id=uuid4()
-    ).model_dump_json()
+    )), default=custom_json_serializer)
     cached_data = {
         "status_code": status.HTTP_400_BAD_REQUEST,
         "body": error_body,

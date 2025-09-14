@@ -27,7 +27,7 @@ def _send_request(provider_name: str) -> requests.Response:
 
 
 def test_real_time_sync_of_disabled_provider():
-    provider_name = "ProviderA"
+    provider_name = "ProviderA" # Changed to a provider that exists
     disable_cmd = [
         "docker",
         "compose",
@@ -70,7 +70,7 @@ def test_real_time_sync_of_disabled_provider():
 
 
 def test_startup_recovery_from_file_cache():
-    provider_name = "ProviderA"
+    provider_name = "ProviderA" # Changed to a provider that exists
     subprocess.run(["docker", "compose", "restart", "server-a"], check=True)
     time.sleep(10)
     response = _send_request(provider_name)

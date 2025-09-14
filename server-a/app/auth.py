@@ -1,18 +1,30 @@
 from fastapi import Header, HTTPException, Request, status
-from typing import Annotated
+import sys
+from typing import Union
+
+if sys.version_info < (3, 9):
+    from typing_extensions import Annotated
+else:
+    from typing import Annotated
 import logging
+import dataclasses
 
 from app.config import ClientConfig
 from app.cache import CLIENT_CONFIG_CACHE
 
 logger = logging.getLogger(__name__)
 
-class ClientContext(ClientConfig):
+@dataclasses.dataclass
+class ClientContext:
+    user_id: int
+    username: str
+    is_active: bool
+    daily_quota: int
     api_key: str
 
 async def get_client_context(
     request: Request,
-    api_key: Annotated[str | None, Header(alias="API-Key")] = None
+    api_key: Annotated[Union[str, None], Header(alias="API-Key")] = None
 ) -> ClientContext:
     if not api_key:
         logger.warning("Authentication failed: API-Key header missing.")
@@ -37,7 +49,7 @@ async def get_client_context(
             detail={"error_code": "UNAUTHORIZED", "message": "Client is inactive"}
         )
 
-    client_context = ClientContext(api_key=api_key, **client_config.model_dump())
+    client_context = ClientContext(api_key=api_key, **dataclasses.asdict(client_config))
     request.state.client = client_context
     logger.info("Client authenticated successfully.", extra={"client_api_key": api_key, "client_name": client_context.username})
     return client_context

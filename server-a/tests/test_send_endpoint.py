@@ -6,8 +6,10 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from uuid import UUID, uuid4
 from datetime import datetime
+import dataclasses
 
-from app.main import app, http_exception_handler
+from app.main import app, http_exception_handler, custom_json_serializer
+from typing import Union
 from app.schemas import SendSmsRequest, SendSmsResponse, ErrorResponse
 from app.config import Settings, ClientConfig
 from app.auth import ClientContext, get_client_context
@@ -45,7 +47,7 @@ def mock_dependencies(mock_settings):
 
         get_client_context_tracker = MagicMock()
 
-        async def _mock_get_client_context(request: Request, api_key: str | None = None):
+        async def _mock_get_client_context(request: Request, api_key: Union[str, None] = None):
             get_client_context_tracker()
             ctx = ClientContext(api_key="client_key_1", user_id=1, username="Test Client 1", is_active=True, daily_quota=100)
             request.state.client = ctx
@@ -162,11 +164,11 @@ async def test_send_sms_idempotency_key_stores_response(mock_dependencies, mock_
 async def test_send_sms_idempotency_key_returns_cached_response(mock_dependencies):
     idempotency_key = "cached-key"
     cached_tracking_id = uuid4()
-    cached_response_body = SendSmsResponse(
+    cached_response_body = json.dumps(dataclasses.asdict(SendSmsResponse(
         success=True,
         message="Request accepted for processing.",
         tracking_id=cached_tracking_id
-    ).model_dump_json()
+    )), default=custom_json_serializer)
     cached_data = {
         "status_code": status.HTTP_202_ACCEPTED,
         "body": cached_response_body,

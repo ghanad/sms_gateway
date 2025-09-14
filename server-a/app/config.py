@@ -1,45 +1,60 @@
+import os
 from typing import Dict, List, Optional
-from pydantic import Field, BaseModel, computed_field
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
+from dataclasses import dataclass, field
 
 def normalize_provider_key(name: str) -> str:
     """Normalize provider names by stripping non-alphanumeric characters and lowering case."""
     return ''.join(ch for ch in name.lower() if ch.isalnum())
 
-class ClientConfig(BaseModel):
+@dataclass
+class ClientConfig:
     user_id: int
     username: str
     is_active: bool = True
     daily_quota: int = 1000
 
-class ProviderConfig(BaseModel):
+@dataclass
+class ProviderConfig:
     is_active: bool
     is_operational: bool
     aliases: Optional[List[str]] = None
     note: Optional[str] = None
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(extra="allow")
+class Settings:
+    def __init__(self, **kwargs):
+        self.app_name: str = os.getenv("APP_NAME", "SMS Gateway - Server A")
+        self.log_level: str = os.getenv("LOG_LEVEL", "INFO")
+        self.redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
+        self.rabbit_host: str = os.getenv("RABBITMQ_HOST", "rabbitmq")
+        self.rabbit_port: int = int(os.getenv("RABBITMQ_PORT", "5672"))
+        self.rabbit_user: str = os.getenv("RABBITMQ_USER", "guest")
+        self.rabbit_pass: str = os.getenv("RABBITMQ_PASS", "guest")
+        self.outbound_sms_exchange: str = os.getenv("OUTBOUND_SMS_EXCHANGE", "sms_outbound_exchange")
+        self.outbound_sms_queue: str = os.getenv("OUTBOUND_SMS_QUEUE", "sms_outbound_queue")
+        self.idempotency_ttl_seconds: int = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "86400"))
+        self.heartbeat_interval_seconds: int = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "60"))
+        self.PROVIDER_GATE_ENABLED: bool = os.getenv("PROVIDER_GATE_ENABLED", "True").lower() in ("true", "1", "t")
+        self.QUOTA_PREFIX: str = os.getenv("QUOTA_PREFIX", "quota")
+        self.CLIENT_CONFIG: str = os.getenv("CLIENT_CONFIG", "{}")
+        self.PROVIDERS_CONFIG: str = os.getenv("PROVIDERS_CONFIG", "{}")
 
-    app_name: str = Field("SMS Gateway - Server A", env="APP_NAME")
-    log_level: str = Field("INFO", env="LOG_LEVEL")
-    redis_url: str = Field("redis://redis:6379/0", env="REDIS_URL")
-    rabbit_host: str = Field("rabbitmq", env="RABBITMQ_HOST")
-    rabbit_port: int = Field(5672, env="RABBITMQ_PORT")
-    rabbit_user: str = Field("guest", env="RABBITMQ_USER")
-    rabbit_pass: str = Field("guest", env="RABBITMQ_PASS")
-    outbound_sms_exchange: str = Field("sms_outbound_exchange", env="OUTBOUND_SMS_EXCHANGE")
-    outbound_sms_queue: str = Field("sms_outbound_queue", env="OUTBOUND_SMS_QUEUE")
-    idempotency_ttl_seconds: int = Field(86400, env="IDEMPOTENCY_TTL_SECONDS")
-    heartbeat_interval_seconds: int = Field(60, env="HEARTBEAT_INTERVAL_SECONDS")
-    PROVIDER_GATE_ENABLED: bool = Field(True, env="PROVIDER_GATE_ENABLED")
-    QUOTA_PREFIX: str = Field("quota", env="QUOTA_PREFIX")
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
-    @computed_field
     @property
     def RABBITMQ_URL(self) -> str:
+        if hasattr(self, '_RABBITMQ_URL'):
+            return self._RABBITMQ_URL
         return f"amqp://{self.rabbit_user}:{self.rabbit_pass}@{self.rabbit_host}:{self.rabbit_port}/"
 
+    @RABBITMQ_URL.setter
+    def RABBITMQ_URL(self, value):
+        self._RABBITMQ_URL = value
+
+_settings = None
+
 def get_settings() -> Settings:
-    return Settings()
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
