@@ -32,7 +32,7 @@ from app.provider_gate import provider_gate
 from app.quota import enforce_daily_quota
 from app.rabbit import publish_sms_message, get_rabbitmq_connection, RABBITMQ_QUEUE_NAME, RABBITMQ_EXCHANGE_NAME
 from app.consumers import consume_config_state
-from app.cache import load_state_from_file
+from app.cache import load_state_from_file, apply_state, save_state_to_file
 from app.heartbeat import start_heartbeat_task, HEARTBEAT_QUEUE_NAME, HEARTBEAT_EXCHANGE_NAME
 
 # Setup logging as early as possible
@@ -101,7 +101,16 @@ async def lifespan(app: FastAPI):
     if load_state_from_file():
         logger.info("Configuration cache warmed from local file.")
     else:
-        logger.warning("No valid configuration cache found. Waiting for state broadcast.")
+        logger.warning("No valid configuration cache found. Attempting to load from environment variables.")
+        try:
+            client_config = json.loads(settings.CLIENT_CONFIG)
+            providers_config = json.loads(settings.PROVIDERS_CONFIG)
+            initial_state = {"users": client_config, "providers": providers_config}
+            apply_state(initial_state)
+            save_state_to_file(initial_state) # Persist for subsequent restarts
+            logger.info("Successfully loaded and applied initial config from environment.")
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Failed to parse initial config from environment: {e}. Server will start with empty config and wait for broadcast.")
 
     asyncio.create_task(consume_config_state())
     logger.info("Configuration state consumer started.")

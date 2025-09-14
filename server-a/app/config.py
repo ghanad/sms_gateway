@@ -35,6 +35,8 @@ class Settings:
         self.heartbeat_interval_seconds: int = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "60"))
         self.PROVIDER_GATE_ENABLED: bool = os.getenv("PROVIDER_GATE_ENABLED", "True").lower() in ("true", "1", "t")
         self.QUOTA_PREFIX: str = os.getenv("QUOTA_PREFIX", "quota")
+        self.CLIENT_CONFIG: str = os.getenv("CLIENT_CONFIG", "{}")
+        self.PROVIDERS_CONFIG: str = os.getenv("PROVIDERS_CONFIG", "{}")
 
         for key, value in kwargs.items():
             setattr(self, key, value)
