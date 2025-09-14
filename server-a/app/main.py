@@ -5,9 +5,10 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import List, Optional
 from uuid import uuid4, UUID
+import dataclasses
 
 import aio_pika
-from fastapi import FastAPI, Depends, HTTPException, status, Request, Response
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Response, Body
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -138,7 +139,8 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         }
     )
     # Manually serialize the content to handle datetime objects
-    content = json.loads(json.dumps(error_response.model_dump(exclude_none=True), default=custom_json_serializer))
+    content = json.loads(json.dumps(dataclasses.asdict(error_response), default=custom_json_serializer))
+    content = {k: v for k, v in content.items() if v is not None}
     return JSONResponse(
         status_code=exc.status_code,
         content=content
@@ -154,23 +156,33 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         details={"errors": jsonable_encoder(exc.errors())},
         tracking_id=tracking_id
     )
-    content = json.loads(json.dumps(error_response.model_dump(exclude_none=True), default=custom_json_serializer))
+    content = json.loads(json.dumps(dataclasses.asdict(error_response), default=custom_json_serializer))
+    content = {k: v for k, v in content.items() if v is not None}
     return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=content)
 
 async def get_client_context_dep() -> ClientContext:
     return await get_client_context()
 
 
-@app.post("/api/v1/sms/send", response_model=SendSmsResponse, status_code=status.HTTP_202_ACCEPTED)
+@app.post("/api/v1/sms/send", status_code=status.HTTP_202_ACCEPTED)
 async def send_sms(
     request: Request,
-    sms_request: SendSmsRequest,
-    client: ClientContext = Depends(get_client_context) 
+    payload: dict = Body(...),
+    client: ClientContext = Depends(get_client_context)
 ):
     start_time = asyncio.get_event_loop().time()
     SMS_SEND_REQUESTS_TOTAL.inc()
     tracking_id = uuid4()
     request.state.tracking_id = tracking_id # Attach tracking_id to request state for logging/error handling
+
+    try:
+        sms_request = SendSmsRequest(**payload)
+        sms_request.validate_phone()
+    except (TypeError, ValueError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error_code": "INVALID_PAYLOAD", "message": str(e)}
+        )
 
     logger.info(
         "Received SMS send request.",
@@ -200,10 +212,11 @@ async def send_sms(
             success=True,
             message="Request accepted for processing.",
             tracking_id=tracking_id
-        ).model_dump_json()
+        )
+        response_content = json.loads(json.dumps(dataclasses.asdict(response_content), default=custom_json_serializer))
 
         SMS_SEND_REQUEST_SUCCESS_TOTAL.inc()
-        return JSONResponse(content=json.loads(response_content), status_code=status.HTTP_202_ACCEPTED)
+        return JSONResponse(content=response_content, status_code=status.HTTP_202_ACCEPTED)
 
     except HTTPException as e:
         SMS_SEND_REQUEST_ERROR_TOTAL.inc()
