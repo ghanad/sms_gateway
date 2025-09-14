@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from typing import List, Optional
 from uuid import uuid4, UUID
 import dataclasses
+import os # Import os module
 
 import aio_pika
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Response, Body
@@ -50,18 +51,33 @@ async def lifespan(app: FastAPI):
 
     logger.info("Starting up Server A application...")
 
+    # Log environment variables used by Settings
+    logger.info(f"APP_NAME: {os.getenv('APP_NAME')}")
+    logger.info(f"LOG_LEVEL: {os.getenv('LOG_LEVEL')}")
+    logger.info(f"REDIS_URL: {os.getenv('REDIS_URL')}")
+    logger.info(f"RABBITMQ_HOST: {os.getenv('RABBITMQ_HOST')}")
+    logger.info(f"RABBITMQ_PORT: {os.getenv('RABBITMQ_PORT')}")
+    logger.info(f"RABBITMQ_USER: {os.getenv('RABBITMQ_USER')}")
+    logger.info(f"RABBITMQ_PASS: {os.getenv('RABBITMQ_PASS')}")
+    logger.info(f"IDEMPOTENCY_TTL_SECONDS: {os.getenv('IDEMPOTENCY_TTL_SECONDS')}")
+    logger.info(f"HEARTBEAT_INTERVAL_SECONDS: {os.getenv('HEARTBEAT_INTERVAL_SECONDS')}")
+    logger.info(f"PROVIDER_GATE_ENABLED: {os.getenv('PROVIDER_GATE_ENABLED')}")
+    logger.info(f"QUOTA_PREFIX: {os.getenv('QUOTA_PREFIX')}")
+
+
     # Initialize Redis
     try:
+        logger.info(f"Attempting to connect to Redis at {settings.redis_url}...")
         redis_client = await get_redis_client()
         await redis_client.ping()
-        logger.info("Redis client initialized and connected.")
+        logger.info("Redis client initialized and connected successfully.")
     except Exception as e:
-        logger.critical(f"Failed to connect to Redis on startup: {e}")
-        # In a real production scenario, you might want to exit here or have a more robust retry mechanism
+        logger.critical(f"Failed to connect to Redis on startup: {e}", exc_info=True)
         raise
 
     # Initialize RabbitMQ
     try:
+        logger.info(f"Attempting to connect to RabbitMQ at {settings.rabbit_host}:{settings.rabbit_port}...")
         rabbitmq_connection = await get_rabbitmq_connection()
         rabbitmq_channel = await rabbitmq_connection.channel()
         await rabbitmq_channel.declare_exchange(RABBITMQ_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True)
@@ -72,9 +88,9 @@ async def lifespan(app: FastAPI):
         heartbeat_queue = await rabbitmq_channel.declare_queue(HEARTBEAT_QUEUE_NAME, durable=True)
         await heartbeat_queue.bind(HEARTBEAT_EXCHANGE_NAME, routing_key=HEARTBEAT_QUEUE_NAME)
 
-        logger.info("RabbitMQ connection and channel initialized.")
+        logger.info("RabbitMQ connection and channel initialized successfully.")
     except Exception as e:
-        logger.critical(f"Failed to connect to RabbitMQ on startup: {e}")
+        logger.critical(f"Failed to connect to RabbitMQ on startup: {e}", exc_info=True)
         raise
 
     # Start heartbeat task
