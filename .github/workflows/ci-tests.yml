@@ -74,6 +74,12 @@ jobs:
           )
           publish_full_state()
           PY
+          
+      - name: Wait for config to propagate
+        run: |
+          echo "Waiting 10 seconds for config state to broadcast and be consumed..."
+          sleep 10
+
       - name: Run E2E tests
         run: RUN_E2E=1 pytest tests/e2e/
       - name: Teardown

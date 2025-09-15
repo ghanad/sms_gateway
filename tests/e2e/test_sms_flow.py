@@ -12,8 +12,42 @@ pytestmark = pytest.mark.skipif(
     reason="E2E tests require docker compose environment",
 )
 
+@pytest.fixture(scope="module", autouse=True)
+def ensure_provider_is_active():
+    """
+    This fixture runs once before any test in this file. It ensures that
+    the primary test provider ('ProviderA') is active and that this state
+    has been broadcasted to server-a. This prevents state pollution from
+    previous test files.
+    """
+    provider_slug_for_db = "provider-a"
+    print("\\nEnsuring 'ProviderA' is active and config is synced for sms_flow tests...")
 
-def wait_for_server_a_ready(max_retries=10, delay_seconds=8):
+    # Command to enable the provider, using get_or_create for safety
+    enable_cmd = [
+        "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
+        (
+            f"from providers.models import SmsProvider; "
+            f"p, _ = SmsProvider.objects.get_or_create(slug='{provider_slug_for_db}', defaults={{'name':'ProviderA', 'send_url':'http://mock-provider-api:8000/send', 'balance_url':'http://mock-provider-api:8000/balance', 'default_sender':'100'}}); "
+            f"p.is_active=True; p.save()"
+        ),
+    ]
+    subprocess.run(enable_cmd, check=True, capture_output=True)
+
+    # Command to immediately trigger a state broadcast from server-b
+    broadcast_cmd = [
+        "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
+        "from core.state_broadcaster import publish_full_state; publish_full_state.delay()"
+    ]
+    subprocess.run(broadcast_cmd, check=True, capture_output=True)
+
+    # Wait a few seconds for the broadcast message to be processed by server-a
+    time.sleep(10)
+    print("Provider state reset and synced.")
+    yield
+
+
+def wait_for_server_a_ready(max_retries=15, delay_seconds=8):
     """
     Continuously polls Server A until it's ready and has received its configuration from Server B.
     Success is defined as receiving any status code other than 503 (Service Unavailable).
@@ -22,7 +56,11 @@ def wait_for_server_a_ready(max_retries=10, delay_seconds=8):
     for i in range(max_retries):
         try:
             headers = {"API-Key": "api_key_for_service_A"}
-            payload = {"to": "+15555550100", "text": "readiness check"}
+            payload = {
+                "to": "+15555550100", 
+                "text": "readiness check",
+                "providers": ["ProviderA"] 
+            }
 
             response = requests.post(
                 "http://localhost:8001/api/v1/sms/send", json=payload, headers=headers, timeout=5
@@ -30,7 +68,6 @@ def wait_for_server_a_ready(max_retries=10, delay_seconds=8):
 
             if response.status_code != 503:
                 print(f"Server A is ready! (Received status code: {response.status_code})")
-                # response.raise_for_status()
                 return
             else:
                 print(f"Attempt {i + 1}/{max_retries}: Server A is not ready yet (503). Retrying in {delay_seconds}s...")
@@ -48,6 +85,7 @@ def _send_request():
     payload = {
         "to": "+15555550100",
         "text": "test message",
+        "providers": ["ProviderA"],
     }
     headers = {"API-Key": "api_key_for_service_A"}
     resp = requests.post(
@@ -66,22 +104,13 @@ def _get_message(tracking_id: str) -> dict:
     )
 
     cmd = [
-        "docker", "compose",
-        "exec",
-        "-T",
-        "server-b",
-        "python",
-        "manage.py",
-        "shell",
-        "--no-startup",
-        "--command", command_to_run,
+        "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell",
+        "--no-startup", "--command", command_to_run,
     ]
 
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-
     output_lines = result.stdout.strip().splitlines()
     json_output = output_lines[-1] if output_lines else "{}"
-
     return json.loads(json_output)
 
 
@@ -89,24 +118,17 @@ def test_successful_end_to_end_flow():
     """Tests a complete successful end-to-end scenario."""
     wait_for_server_a_ready()
 
-    # Wait for the in-flight 'readiness check' message to be fully processed.
+    # The fixture has already ensured the provider is active.
+    # Give a brief moment for any in-flight readiness check messages to clear.
     time.sleep(15)
 
-    # Now, configure the mock provider for a successful response AND reset its logs.
-    # This clears the log from the readiness check.
     requests.post("http://localhost:5005/config", json={"mode": "success"}, timeout=5)
-
-    # The system is now in a clean state. Send the actual test SMS.
     tracking_id = _send_request()
-
-    # Wait for the test message to be processed.
     time.sleep(20)
 
-    # Check the final status of the message in the database.
     message = _get_message(tracking_id)
     assert message["status"] == "SENT"
 
-    # Check the mock provider's logs, which should now only contain the test message.
     logs = requests.get("http://localhost:5005/logs", timeout=5).json()
     assert len(logs) == 1
 
@@ -115,29 +137,18 @@ def test_full_retry_and_recovery():
     """Tests the full retry mechanism in case of a transient failure."""
     wait_for_server_a_ready()
 
-    # Wait for the in-flight 'readiness check' message to be fully processed.
     time.sleep(15)
 
-    # Configure the mock provider for a transient error and reset its logs.
     requests.post("http://localhost:5005/config", json={"mode": "transient"}, timeout=5)
-
-    # Send the SMS.
     tracking_id = _send_request()
-
-    # Wait for the first failed attempt to be registered.
     time.sleep(15)
 
-    # Check that the message status has changed to AWAITING_RETRY.
     message = _get_message(tracking_id)
     assert message["status"] == "AWAITING_RETRY"
     assert message["error"] is not None
 
-    # Reconfigure the mock provider for a successful response.
     requests.post("http://localhost:5005/config", json={"mode": "success"}, timeout=5)
-
-    # Wait for Celery to perform the retry (more time is needed due to backoff).
     time.sleep(65)
 
-    # Check the final status of the message after a successful retry.
     message = _get_message(tracking_id)
     assert message["status"] == "SENT"
