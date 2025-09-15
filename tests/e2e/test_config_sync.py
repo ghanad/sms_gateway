@@ -31,14 +31,7 @@ def test_real_time_sync_of_disabled_provider():
     provider_slug_for_db = "provider-a"
 
     disable_cmd = [
-        "docker",
-        "compose",
-        "exec",
-        "-T",
-        "server-b",
-        "python",
-        "manage.py",
-        "shell",
+        "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell",
         "-c",
         (
             f"from providers.models import SmsProvider; "
@@ -47,24 +40,15 @@ def test_real_time_sync_of_disabled_provider():
         ),
     ]
     subprocess.run(disable_cmd, check=True)
-    # Wait for the change to be broadcasted and applied by server-a
-    time.sleep(70)
+    time.sleep(70)  # Wait for config broadcast
     response = _send_request(provider_name_for_api)
     assert response.status_code == 409
     body = response.json()
     assert body.get("error_code") == "PROVIDER_DISABLED"
-
+    
     # Clean up state for other tests by re-enabling the provider
     enable_cmd = [
-        "docker",
-        "compose",
-        "exec",
-        "-T",
-        "server-b",
-        "python",
-        "manage.py",
-        "shell",
-        "-c",
+        "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
         (
             f"from providers.models import SmsProvider; "
             f"p=SmsProvider.objects.get(slug='{provider_slug_for_db}'); "
@@ -72,6 +56,7 @@ def test_real_time_sync_of_disabled_provider():
         ),
     ]
     subprocess.run(enable_cmd, check=True)
+    time.sleep(1) # Small delay to ensure command completes
 
 
 def test_startup_recovery_from_file_cache():
@@ -90,12 +75,24 @@ def test_startup_recovery_from_file_cache():
     subprocess.run(disable_cmd, check=True)
     time.sleep(70) # Wait for server-a to receive and cache the 'disabled' state
 
-    # Step 2: Restart server-a. It should now load the disabled state from its local file cache.
+    # Step 2: Restart server-a. It should now load the disabled state from its file cache.
     subprocess.run(["docker", "compose", "restart", "server-a"], check=True)
-    time.sleep(10) # Give server-a time to start up
+    time.sleep(15) # Give server-a more time to start up properly
 
     # Step 3: Send a request. It should be rejected because the cached state is 'disabled'.
     response = _send_request(provider_name_for_api)
     assert response.status_code == 409
     body = response.json()
     assert body.get("error_code") == "PROVIDER_DISABLED"
+    
+    # Step 4: CLEANUP! Re-enable the provider so other test files are not affected.
+    enable_cmd = [
+        "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
+        (
+            f"from providers.models import SmsProvider; "
+            f"p=SmsProvider.objects.get(slug='{provider_slug_for_db}'); "
+            "p.is_active=True; p.save()"
+        ),
+    ]
+    subprocess.run(enable_cmd, check=True)
+    # No need to wait for broadcast here, as the next test file will have its own delays.
