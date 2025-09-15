@@ -22,7 +22,12 @@ def wait_for_server_a_ready(max_retries=15, delay_seconds=8):
     for i in range(max_retries):
         try:
             headers = {"API-Key": "api_key_for_service_A"}
-            payload = {"to": "+15555550100", "text": "readiness check"}
+            # MODIFICATION: Explicitly request a provider to avoid 503 from smart selection
+            payload = {
+                "to": "+15555550100", 
+                "text": "readiness check",
+                "providers": ["ProviderA"] 
+            }
 
             response = requests.post(
                 "http://localhost:8001/api/v1/sms/send", json=payload, headers=headers, timeout=5
@@ -30,8 +35,7 @@ def wait_for_server_a_ready(max_retries=15, delay_seconds=8):
 
             if response.status_code != 503:
                 print(f"Server A is ready! (Received status code: {response.status_code})")
-                # A 401 status is acceptable here, it means the server is responsive
-                # but may not have the final auth config yet. We don't raise an error.
+                # A 401 is an acceptable ready signal, so we don't raise for status.
                 return
             else:
                 print(f"Attempt {i + 1}/{max_retries}: Server A is not ready yet (503). Retrying in {delay_seconds}s...")
