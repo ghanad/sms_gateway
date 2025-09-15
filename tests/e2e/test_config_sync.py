@@ -39,76 +39,59 @@ def test_real_time_sync_of_disabled_provider():
     provider_name = "ProviderA"
     provider_slug = "provider-a"
 
-    # Step 1: Disable the provider in server-b's database
-    disable_cmd = [
-        "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
-        (
-            f"from providers.models import SmsProvider; "
-            f"p=SmsProvider.objects.get(slug='{provider_slug}'); "
-            "p.is_active=False; p.save()"
-        ),
-    ]
-    subprocess.run(disable_cmd, check=True)
+    try:
+        # Step 1: Disable the provider
+        disable_cmd = [
+            "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
+            f"from providers.models import SmsProvider; p=SmsProvider.objects.get(slug='{provider_slug}'); p.is_active=False; p.save()"
+        ]
+        subprocess.run(disable_cmd, check=True)
 
-    # Step 2: Trigger the broadcast and wait for server-a to consume it
-    _trigger_broadcast()
-    time.sleep(10)
+        # Step 2: Trigger broadcast and wait for sync
+        _trigger_broadcast()
+        time.sleep(10)
 
-    # Step 3: Assert that server-a now rejects requests for the disabled provider
-    response = _send_request(provider_name)
-    assert response.status_code == 409
-    body = response.json()
-    assert body.get("error_code") == "PROVIDER_DISABLED"
-    
-    # Step 4: Clean up by re-enabling the provider and broadcasting the change
-    enable_cmd = [
-        "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
-        (
-            f"from providers.models import SmsProvider; "
-            f"p=SmsProvider.objects.get(slug='{provider_slug}'); "
-            "p.is_active=True; p.save()"
-        ),
-    ]
-    subprocess.run(enable_cmd, check=True)
-    _trigger_broadcast()
-    time.sleep(5) # Give a moment for the cleanup broadcast
+        # Step 3: Assert the provider is seen as disabled by server-a
+        response = _send_request(provider_name)
+        assert response.status_code == 409
+        assert response.json().get("error_code") == "PROVIDER_DISABLED"
+    finally:
+        # Step 4: Cleanup - ALWAYS re-enable the provider
+        enable_cmd = [
+            "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
+            f"from providers.models import SmsProvider; p=SmsProvider.objects.get(slug='{provider_slug}'); p.is_active=True; p.save()"
+        ]
+        subprocess.run(enable_cmd, check=True)
+        _trigger_broadcast() # Broadcast the cleaned-up state
+        time.sleep(5)
 
 
 def test_startup_recovery_from_file_cache():
     provider_name = "ProviderA"
     provider_slug = "provider-a"
+    try:
+        # Step 1: Disable the provider and ensure server-a caches this state
+        disable_cmd = [
+            "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
+            f"from providers.models import SmsProvider; p=SmsProvider.objects.get(slug='{provider_slug}'); p.is_active=False; p.save()"
+        ]
+        subprocess.run(disable_cmd, check=True)
+        _trigger_broadcast()
+        time.sleep(10)
 
-    # Step 1: Disable the provider and ensure server-a receives and caches this state
-    disable_cmd = [
-        "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
-        (
-            f"from providers.models import SmsProvider; "
-            f"p=SmsProvider.objects.get(slug='{provider_slug}'); "
-            "p.is_active=False; p.save()"
-        ),
-    ]
-    subprocess.run(disable_cmd, check=True)
-    _trigger_broadcast()
-    time.sleep(10)
+        # Step 2: Restart server-a. It should load the 'disabled' state from its file cache.
+        subprocess.run(["docker", "compose", "restart", "server-a"], check=True)
+        time.sleep(15)
 
-    # Step 2: Restart server-a. It should load the 'disabled' state from its local file.
-    subprocess.run(["docker", "compose", "restart", "server-a"], check=True)
-    time.sleep(15) # Give it time to start up
-
-    # Step 3: Assert that requests are rejected based on the cached 'disabled' state
-    response = _send_request(provider_name)
-    assert response.status_code == 409
-    body = response.json()
-    assert body.get("error_code") == "PROVIDER_DISABLED"
-
-    # Step 4: Clean up by re-enabling the provider for any subsequent tests
-    enable_cmd = [
-        "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
-        (
-            f"from providers.models import SmsProvider; "
-            f"p=SmsProvider.objects.get(slug='{provider_slug}'); "
-            "p.is_active=True; p.save()"
-        ),
-    ]
-    subprocess.run(enable_cmd, check=True)
-    _trigger_broadcast() # Trigger a final broadcast to ensure consistency
+        # Step 3: Assert requests are rejected based on the cached 'disabled' state
+        response = _send_request(provider_name)
+        assert response.status_code == 409
+        assert response.json().get("error_code") == "PROVIDER_DISABLED"
+    finally:
+        # Step 4: Cleanup - ALWAYS re-enable the provider
+        enable_cmd = [
+            "docker", "compose", "exec", "-T", "server-b", "python", "manage.py", "shell", "-c",
+            f"from providers.models import SmsProvider; p=SmsProvider.objects.get(slug='{provider_slug}'); p.is_active=True; p.save()"
+        ]
+        subprocess.run(enable_cmd, check=True)
+        _trigger_broadcast() # Broadcast the cleaned-up state
