@@ -29,8 +29,10 @@ class Settings:
         self.rabbit_port: int = int(os.getenv("RABBITMQ_PORT", "5672"))
         self.rabbit_user: str = os.getenv("RABBITMQ_USER", "guest")
         self.rabbit_pass: str = os.getenv("RABBITMQ_PASS", "guest")
-        self.outbound_sms_exchange: str = os.getenv("OUTBOUND_SMS_EXCHANGE", "sms_outbound_exchange")
+        self.rabbit_vhost: str = os.getenv("RABBITMQ_VHOST", "/")
+        self.outbound_sms_exchange: str = os.getenv("RABBITMQ_EXCHANGE", "sms_gateway_exchange")
         self.outbound_sms_queue: str = os.getenv("OUTBOUND_SMS_QUEUE", "sms_outbound_queue")
+        self.outbound_sms_routing_key: str = os.getenv("RABBITMQ_ROUTING_KEY", self.outbound_sms_queue)
         self.idempotency_ttl_seconds: int = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "86400"))
         self.heartbeat_interval_seconds: int = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "60"))
         self.PROVIDER_GATE_ENABLED: bool = os.getenv("PROVIDER_GATE_ENABLED", "True").lower() in ("true", "1", "t")
@@ -45,7 +47,8 @@ class Settings:
     def RABBITMQ_URL(self) -> str:
         if hasattr(self, '_RABBITMQ_URL'):
             return self._RABBITMQ_URL
-        return f"amqp://{self.rabbit_user}:{self.rabbit_pass}@{self.rabbit_host}:{self.rabbit_port}/"
+        vhost = self.rabbit_vhost if self.rabbit_vhost.startswith('/') else f"/{self.rabbit_vhost}"
+        return f"amqp://{self.rabbit_user}:{self.rabbit_pass}@{self.rabbit_host}:{self.rabbit_port}{vhost}"
 
     @RABBITMQ_URL.setter
     def RABBITMQ_URL(self, value):

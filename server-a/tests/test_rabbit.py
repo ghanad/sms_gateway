@@ -6,7 +6,7 @@ from datetime import datetime
 
 import aio_pika
 
-from app.rabbit import publish_sms_message, RABBITMQ_EXCHANGE_NAME, RABBITMQ_QUEUE_NAME
+from app.rabbit import publish_sms_message
 
 
 class DummyChannelContext:
@@ -39,6 +39,9 @@ async def test_publish_sms_message_publishes_and_closes_connection():
     mock_connection.close = AsyncMock()
 
     with patch('app.rabbit.get_rabbitmq_connection', new=AsyncMock(return_value=mock_connection)), \
+         patch('app.rabbit.RABBITMQ_EXCHANGE_NAME', new="test_exchange"), \
+         patch('app.rabbit.RABBITMQ_QUEUE_NAME', new="test_queue"), \
+         patch('app.rabbit.RABBITMQ_ROUTING_KEY', new="test_routing_key"), \
          patch('app.rabbit.Message') as mock_message, \
          patch('app.rabbit.datetime') as mock_datetime:
         mock_datetime.utcnow.return_value = fixed_time
@@ -55,10 +58,10 @@ async def test_publish_sms_message_publishes_and_closes_connection():
         )
 
     mock_channel.declare_exchange.assert_called_once_with(
-        RABBITMQ_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True
+        "test_exchange", aio_pika.ExchangeType.DIRECT, durable=True
     )
-    mock_channel.declare_queue.assert_called_once_with(RABBITMQ_QUEUE_NAME, durable=True)
-    mock_queue.bind.assert_called_once_with(RABBITMQ_EXCHANGE_NAME, routing_key=RABBITMQ_QUEUE_NAME)
+    mock_channel.declare_queue.assert_called_once_with("test_queue", durable=True)
+    mock_queue.bind.assert_called_once_with("test_exchange", routing_key="test_routing_key")
 
     args, kwargs = mock_message.call_args
     body = args[0]
@@ -79,6 +82,6 @@ async def test_publish_sms_message_publishes_and_closes_connection():
 
     mock_exchange.publish.assert_awaited_once_with(
         mock_message.return_value,
-        routing_key=RABBITMQ_QUEUE_NAME,
+        routing_key="test_routing_key",
     )
     mock_connection.close.assert_awaited_once()

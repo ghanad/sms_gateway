@@ -1,3 +1,5 @@
+# server-a/app/rabbit.py
+
 import logging
 import json
 import uuid
@@ -12,8 +14,9 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-RABBITMQ_EXCHANGE_NAME = "sms_gateway_exchange"
-RABBITMQ_QUEUE_NAME = "sms_outbound_queue"
+RABBITMQ_EXCHANGE_NAME = settings.outbound_sms_exchange
+RABBITMQ_QUEUE_NAME = settings.outbound_sms_queue
+RABBITMQ_ROUTING_KEY = settings.outbound_sms_routing_key
 
 async def get_rabbitmq_connection() -> aio_pika.Connection:
     """Establishes and returns a RabbitMQ connection."""
@@ -46,7 +49,8 @@ async def publish_sms_message(
                 RABBITMQ_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True
             )
             queue = await channel.declare_queue(RABBITMQ_QUEUE_NAME, durable=True)
-            await queue.bind(RABBITMQ_EXCHANGE_NAME, routing_key=RABBITMQ_QUEUE_NAME)
+            # Bind the queue to the exchange with the correct routing key
+            await queue.bind(RABBITMQ_EXCHANGE_NAME, routing_key=RABBITMQ_ROUTING_KEY)
 
             envelope = {
                 "tracking_id": str(tracking_id),
@@ -67,7 +71,7 @@ async def publish_sms_message(
                 delivery_mode=DeliveryMode.PERSISTENT
             )
 
-            await exchange.publish(message, routing_key=RABBITMQ_QUEUE_NAME)
+            await exchange.publish(message, routing_key=RABBITMQ_ROUTING_KEY)
             logger.info(
                 "SMS message published to RabbitMQ.",
                 extra={"tracking_id": str(tracking_id), "client_api_key": client_key, "to": to}
