@@ -66,8 +66,8 @@ async def lifespan(app: FastAPI):
     try:
         rabbitmq_connection = await get_rabbitmq_connection()
         rabbitmq_channel = await rabbitmq_connection.channel()
-        await rabbitmq_channel.declare_exchange(RABBITMQ_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True)
-        await rabbitmq_channel.declare_queue(RABBITMQ_QUEUE_NAME, durable=True)
+        await rabbitmq_channel.declare_exchange(settings.outbound_sms_exchange, aio_pika.ExchangeType.DIRECT, durable=True)
+        await rabbitmq_channel.declare_queue(settings.outbound_sms_queue, durable=True)
         await rabbitmq_channel.declare_exchange(HEARTBEAT_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True)
         await rabbitmq_channel.declare_queue(HEARTBEAT_QUEUE_NAME, durable=True)
         logger.info("RabbitMQ connection and channel initialized.")
