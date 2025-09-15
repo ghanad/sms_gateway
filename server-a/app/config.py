@@ -39,6 +39,8 @@ class Settings:
         self.QUOTA_PREFIX: str = os.getenv("QUOTA_PREFIX", "quota")
         self.CLIENT_CONFIG: str = os.getenv("CLIENT_CONFIG", "{}")
         self.PROVIDERS_CONFIG: str = os.getenv("PROVIDERS_CONFIG", "{}")
+        self.heartbeat_exchange_name: str = os.getenv("RABBITMQ_HEARTBEAT_EXCHANGE", "sms_gateway_heartbeat_exchange")
+        self.heartbeat_queue_name: str = os.getenv("RABBITMQ_HEARTBEAT_QUEUE", "sms_heartbeat_queue")
 
         for key, value in kwargs.items():
             setattr(self, key, value)

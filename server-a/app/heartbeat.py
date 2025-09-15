@@ -11,8 +11,6 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-HEARTBEAT_EXCHANGE_NAME = "sms_gateway_heartbeat_exchange"
-HEARTBEAT_QUEUE_NAME = "sms_heartbeat_queue"
 
 async def send_heartbeat():
     """
@@ -23,11 +21,11 @@ async def send_heartbeat():
     try:
         connection = await aio_pika.connect_robust(settings.RABBITMQ_URL)
         async with connection.channel() as channel:
-            exchange = await channel.declare_exchange(HEARTBEAT_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True)
+            exchange = await channel.declare_exchange(settings.heartbeat_exchange_name, aio_pika.ExchangeType.DIRECT, durable=True)
             
-            queue = await channel.declare_queue(HEARTBEAT_QUEUE_NAME, durable=True)
+            queue = await channel.declare_queue(settings.heartbeat_queue_name, durable=True)
             
-            await queue.bind(exchange, routing_key=HEARTBEAT_QUEUE_NAME)
+            await queue.bind(exchange, routing_key=settings.heartbeat_queue_name)
 
             heartbeat_payload = {
                 "service": settings.app_name,
@@ -40,11 +38,12 @@ async def send_heartbeat():
                 content_type="application/json",
                 delivery_mode=DeliveryMode.PERSISTENT
             )
-
+            
             await exchange.publish(
                 message,
-                routing_key=HEARTBEAT_QUEUE_NAME
+                routing_key=settings.heartbeat_queue_name
             )
+            
             logger.debug("Heartbeat sent successfully.", extra={"service": settings.app_name})
     except Exception as e:
         logger.error(f"Failed to send heartbeat to RabbitMQ: {e}")
