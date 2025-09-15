@@ -58,7 +58,7 @@ async def test_publish_sms_message_publishes_and_closes_connection():
         )
 
     mock_channel.declare_exchange.assert_called_once_with(
-        "test_exchange", aio_pika.ExchangeType.DIRECT, durable=True
+        "test_exchange", aio_pika.ExchangeType.TOPIC, durable=True
     )
     mock_channel.declare_queue.assert_called_once_with("test_queue", durable=True)
     mock_queue.bind.assert_called_once_with("test_exchange", routing_key="test_routing_key")

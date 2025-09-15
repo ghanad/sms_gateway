@@ -46,7 +46,7 @@ async def publish_sms_message(
         connection = await get_rabbitmq_connection()
         async with connection.channel() as channel:
             exchange = await channel.declare_exchange(
-                RABBITMQ_EXCHANGE_NAME, aio_pika.ExchangeType.DIRECT, durable=True
+                RABBITMQ_EXCHANGE_NAME, aio_pika.ExchangeType.TOPIC, durable=True
             )
             queue = await channel.declare_queue(RABBITMQ_QUEUE_NAME, durable=True)
             # Bind the queue to the exchange with the correct routing key
