@@ -28,6 +28,10 @@ def reset_settings(monkeypatch):
     monkeypatch.setattr(main.settings, "CONFIG_STATE_SYNC_ENABLED", original)
 
 
+def test_config_sync_enabled_default_true(reset_settings):
+    assert main.settings.CONFIG_STATE_SYNC_ENABLED is True
+
+
 def test_start_consumer_disabled(monkeypatch, caplog, reset_settings):
     created_tasks = []
 

@@ -15,6 +15,20 @@ def import_settings(monkeypatch, flag_value: str):
     return importlib.import_module(module_name)
 
 
+def test_config_sync_enabled_default_true(monkeypatch):
+    module_name = "sms_gateway_project.settings"
+    monkeypatch.delenv("CONFIG_STATE_SYNC_ENABLED", raising=False)
+    if module_name in sys.modules:
+        del sys.modules[module_name]
+    settings_module = importlib.import_module(module_name)
+    try:
+        assert settings_module.CONFIG_STATE_SYNC_ENABLED is True
+        assert "publish-full-state" in settings_module.CELERY_BEAT_SCHEDULE
+    finally:
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+
+
 def test_celery_schedule_respects_flag(monkeypatch):
     settings_module = import_settings(monkeypatch, "false")
     assert settings_module.CONFIG_STATE_SYNC_ENABLED is False

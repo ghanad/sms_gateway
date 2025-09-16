@@ -157,7 +157,7 @@ RABBITMQ_USER = os.environ.get('RABBITMQ_USER', 'guest')
 RABBITMQ_PASS = os.environ.get('RABBITMQ_PASS', 'guest')
 CONFIG_EVENTS_EXCHANGE = os.environ.get('CONFIG_EVENTS_EXCHANGE', 'config_events_exchange')
 CONFIG_STATE_EXCHANGE = os.environ.get('CONFIG_STATE_EXCHANGE', 'config_state_exchange')
-CONFIG_STATE_SYNC_ENABLED = os.environ.get('CONFIG_STATE_SYNC_ENABLED', 'False').lower() in ('true', '1', 't')
+CONFIG_STATE_SYNC_ENABLED = os.environ.get('CONFIG_STATE_SYNC_ENABLED', 'True').lower() in ('true', '1', 't')
 
 CELERY_BROKER_URL = os.environ.get(
     'CELERY_BROKER_URL',

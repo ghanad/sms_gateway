@@ -38,7 +38,7 @@ class Settings:
         self.PROVIDER_GATE_ENABLED: bool = os.getenv("PROVIDER_GATE_ENABLED", "True").lower() in ("true", "1", "t")
         self.QUOTA_PREFIX: str = os.getenv("QUOTA_PREFIX", "quota")
         self.CONFIG_STATE_SYNC_ENABLED: bool = os.getenv(
-            "CONFIG_STATE_SYNC_ENABLED", "False"
+            "CONFIG_STATE_SYNC_ENABLED", "True"
         ).lower() in ("true", "1", "t")
         self.CLIENT_CONFIG: str = os.getenv("CLIENT_CONFIG", "{}")
         self.PROVIDERS_CONFIG: str = os.getenv("PROVIDERS_CONFIG", "{}")
