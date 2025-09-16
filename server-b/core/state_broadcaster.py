@@ -1,12 +1,10 @@
 import json
+import logging
 from datetime import datetime
 
 import pika
 from celery import shared_task
 from django.conf import settings
-from django.contrib.auth.models import User
-
-from providers.models import SmsProvider
 
 
 def _get_connection():
@@ -16,8 +14,18 @@ def _get_connection():
     )
 
 
+logger = logging.getLogger(__name__)
+
+
 @shared_task
 def publish_full_state():
+    if not getattr(settings, "CONFIG_STATE_SYNC_ENABLED", False):
+        logger.info("Configuration state sync disabled; skipping broadcast.")
+        return
+
+    from django.contrib.auth.models import User  # Imported lazily for testability
+    from providers.models import SmsProvider  # Imported lazily for testability
+
     connection = _get_connection()
     channel = connection.channel()
     channel.exchange_declare(

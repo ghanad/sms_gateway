@@ -157,6 +157,7 @@ RABBITMQ_USER = os.environ.get('RABBITMQ_USER', 'guest')
 RABBITMQ_PASS = os.environ.get('RABBITMQ_PASS', 'guest')
 CONFIG_EVENTS_EXCHANGE = os.environ.get('CONFIG_EVENTS_EXCHANGE', 'config_events_exchange')
 CONFIG_STATE_EXCHANGE = os.environ.get('CONFIG_STATE_EXCHANGE', 'config_state_exchange')
+CONFIG_STATE_SYNC_ENABLED = os.environ.get('CONFIG_STATE_SYNC_ENABLED', 'False').lower() in ('true', '1', 't')
 
 CELERY_BROKER_URL = os.environ.get(
     'CELERY_BROKER_URL',
@@ -166,12 +167,14 @@ CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'rpc://')
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_IMPORTS = ('core.state_broadcaster',)
 CELERY_BEAT_SCHEDULE = {
-    'publish-full-state': {
-        'task': 'core.state_broadcaster.publish_full_state',
-        'schedule': timedelta(seconds=60),
-    },
     'dispatch-pending-messages': {
         'task': 'messaging.tasks.dispatch_pending_messages',
         'schedule': timedelta(seconds=10),
     },
 }
+
+if CONFIG_STATE_SYNC_ENABLED:
+    CELERY_BEAT_SCHEDULE['publish-full-state'] = {
+        'task': 'core.state_broadcaster.publish_full_state',
+        'schedule': timedelta(seconds=60),
+    }
