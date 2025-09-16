@@ -12,8 +12,6 @@ from messaging.models import Message, MessageStatus
 
 logger = logging.getLogger(__name__)
 
-QUEUE_NAME = "sms_outbound_queue"
-
 
 class Command(BaseCommand):
     """Consume RabbitMQ queue and persist messages reliably to the database."""
@@ -22,12 +20,19 @@ class Command(BaseCommand):
         credentials = pika.PlainCredentials(
             settings.RABBITMQ_USER, settings.RABBITMQ_PASS
         )
+        
         params = pika.ConnectionParameters(
-            host=settings.RABBITMQ_HOST, credentials=credentials
+            host=settings.RABBITMQ_HOST, 
+            credentials=credentials,
+            virtual_host=settings.RABBITMQ_VHOST 
         )
+        
         connection = pika.BlockingConnection(params)
         channel = connection.channel()
-        channel.queue_declare(queue=QUEUE_NAME, durable=True)
+        
+        queue_name = settings.RABBITMQ_SMS_QUEUE
+        channel.queue_declare(queue=queue_name, durable=True)
+
         channel.basic_qos(prefetch_count=1)
 
         def callback(ch, method, properties, body):
@@ -57,9 +62,10 @@ class Command(BaseCommand):
             except Exception:
                 logger.exception("Failed to persist message; re-queueing")
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
-
-        channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback, auto_ack=False)
-        self.stdout.write("Listening on sms_outbound_queue. Press CTRL+C to exit.")
+        
+        channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=False)
+        self.stdout.write(f"Listening on queue '{queue_name}' in vhost '{settings.RABBITMQ_VHOST}'. Press CTRL+C to exit.")
+        
         try:
             channel.start_consuming()
         except KeyboardInterrupt:

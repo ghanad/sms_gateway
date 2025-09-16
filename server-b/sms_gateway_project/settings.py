@@ -155,13 +155,20 @@ ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = 300
 RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'localhost')
 RABBITMQ_USER = os.environ.get('RABBITMQ_USER', 'guest')
 RABBITMQ_PASS = os.environ.get('RABBITMQ_PASS', 'guest')
+
+RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', '/')
+RABBITMQ_SMS_QUEUE = os.environ.get('RABBITMQ_SMS_QUEUE', 'sms_outbound_queue')
+
 CONFIG_EVENTS_EXCHANGE = os.environ.get('CONFIG_EVENTS_EXCHANGE', 'config_events_exchange')
 CONFIG_STATE_EXCHANGE = os.environ.get('CONFIG_STATE_EXCHANGE', 'config_state_exchange')
 
+# Ensure the vhost starts with a /
+vhost_path = RABBITMQ_VHOST if RABBITMQ_VHOST.startswith('/') else f'/{RABBITMQ_VHOST}'
 CELERY_BROKER_URL = os.environ.get(
     'CELERY_BROKER_URL',
-    f'amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}//',
+    f'amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}{vhost_path}',
 )
+
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'rpc://')
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_IMPORTS = ('core.state_broadcaster',)
