@@ -35,10 +35,7 @@ from app.quota import enforce_daily_quota
 from app.rabbit import publish_sms_message, get_rabbitmq_connection
 from app.consumers import consume_config_state
 from app.cache import load_state_from_file, apply_state, save_state_to_file
-# <<< START: Modified import from app.heartbeat >>>
-# The old import was causing an error because the constants were removed.
 from app.heartbeat import start_heartbeat_task
-# <<< END: Modified import >>>
 
 # Setup logging as early as possible
 setup_logging()
@@ -70,11 +67,10 @@ async def lifespan(app: FastAPI):
         rabbitmq_connection = await get_rabbitmq_connection()
         rabbitmq_channel = await rabbitmq_connection.channel()
         await rabbitmq_channel.declare_exchange(settings.outbound_sms_exchange, aio_pika.ExchangeType.TOPIC, durable=True)
-        await rabbitmq_channel.declare_queue(settings.outbound_sms_queue, durable=True)
+        
 
         await rabbitmq_channel.declare_exchange(settings.heartbeat_exchange_name, aio_pika.ExchangeType.DIRECT, durable=True)
         await rabbitmq_channel.declare_queue(settings.heartbeat_queue_name, durable=True)
-
         logger.info("RabbitMQ connection and channel initialized.")
     except Exception as e:
         logger.critical(f"Failed to connect to RabbitMQ on startup: {e}", exc_info=True)
@@ -247,9 +243,6 @@ async def readyz():
             raise ConnectionError("Redis not reachable")
         if not rabbitmq_connection or rabbitmq_connection.is_closed:
             raise ConnectionError("RabbitMQ not connected")
-        
-        # We don't need to redeclare the queue here, just ensure the connection is alive.
-        # A lightweight check is better. The `lifespan` function ensures topology exists.
         
         logger.debug("Readiness check passed: Redis and RabbitMQ are reachable.")
         return {"status": "ok"}

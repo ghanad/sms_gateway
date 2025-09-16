@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 RABBITMQ_EXCHANGE_NAME = settings.outbound_sms_exchange
-RABBITMQ_QUEUE_NAME = settings.outbound_sms_queue
 RABBITMQ_ROUTING_KEY = settings.outbound_sms_routing_key
 
 async def get_rabbitmq_connection() -> aio_pika.Connection:
@@ -48,10 +47,7 @@ async def publish_sms_message(
             exchange = await channel.declare_exchange(
                 RABBITMQ_EXCHANGE_NAME, aio_pika.ExchangeType.TOPIC, durable=True
             )
-            queue = await channel.declare_queue(RABBITMQ_QUEUE_NAME, durable=True)
-            # Bind the queue to the exchange with the correct routing key
-            await queue.bind(RABBITMQ_EXCHANGE_NAME, routing_key=RABBITMQ_ROUTING_KEY)
-
+            
             envelope = {
                 "tracking_id": str(tracking_id),
                 "user_id": user_id,
