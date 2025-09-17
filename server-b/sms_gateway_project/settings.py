@@ -143,26 +143,34 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # allauth settings
 LOGIN_REDIRECT_URL = '/'
 ACCOUNT_LOGOUT_REDIRECT_URL = '/'
-ACCOUNT_AUTHENTICATION_METHOD = 'username'
+ACCOUNT_LOGIN_METHODS = ['username']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_ALLOW_REGISTRATION = False
-ACCOUNT_EMAIL_REQUIRED = False
-ACCOUNT_USERNAME_REQUIRED = True
-ACCOUNT_LOGIN_ATTEMPTS_LIMIT = 5
-ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = 300
+# Use ``*`` to mark required fields per django-allauth's SIGNUP_FIELDS format.
+ACCOUNT_SIGNUP_FIELDS = ['username*', 'password1*']
+ACCOUNT_RATE_LIMITS = {
+    'login_failed': '5/5m',
+}
 
 # RabbitMQ settings
 RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'localhost')
 RABBITMQ_USER = os.environ.get('RABBITMQ_USER', 'guest')
 RABBITMQ_PASS = os.environ.get('RABBITMQ_PASS', 'guest')
+
+RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', '/')
+RABBITMQ_SMS_QUEUE = os.environ.get('RABBITMQ_SMS_QUEUE', 'sms_outbound_queue')
+
 CONFIG_EVENTS_EXCHANGE = os.environ.get('CONFIG_EVENTS_EXCHANGE', 'config_events_exchange')
 CONFIG_STATE_EXCHANGE = os.environ.get('CONFIG_STATE_EXCHANGE', 'config_state_exchange')
 CONFIG_STATE_SYNC_ENABLED = os.environ.get('CONFIG_STATE_SYNC_ENABLED', 'True').lower() in ('true', '1', 't')
 
+# Ensure the vhost starts with a /
+vhost_path = RABBITMQ_VHOST if RABBITMQ_VHOST.startswith('/') else f'/{RABBITMQ_VHOST}'
 CELERY_BROKER_URL = os.environ.get(
     'CELERY_BROKER_URL',
-    f'amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}//',
+    f'amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}{vhost_path}',
 )
+
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'rpc://')
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_IMPORTS = ('core.state_broadcaster',)
@@ -171,7 +179,9 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'messaging.tasks.dispatch_pending_messages',
         'schedule': timedelta(seconds=10),
     },
+
 }
+
 
 if CONFIG_STATE_SYNC_ENABLED:
     CELERY_BEAT_SCHEDULE['publish-full-state'] = {
