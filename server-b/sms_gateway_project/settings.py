@@ -146,7 +146,8 @@ ACCOUNT_LOGOUT_REDIRECT_URL = '/'
 ACCOUNT_LOGIN_METHODS = ['username']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_ALLOW_REGISTRATION = False
-ACCOUNT_SIGNUP_FIELDS = ['username', 'password']
+# Use ``*`` to mark required fields per django-allauth's SIGNUP_FIELDS format.
+ACCOUNT_SIGNUP_FIELDS = ['username*', 'password1*']
 ACCOUNT_RATE_LIMITS = {
     'login_failed': '5/5m',
 }
