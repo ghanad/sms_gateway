@@ -3,46 +3,27 @@ import os
 import sys
 from types import SimpleNamespace
 
+import django
+from django.apps import apps
+
 
 TEST_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if TEST_ROOT not in sys.path:
     sys.path.insert(0, TEST_ROOT)
 
 
-def import_state_broadcaster():
-    module_name = "core.state_broadcaster"
+def import_messaging_tasks(monkeypatch):
+    module_name = "messaging.tasks"
+    monkeypatch.setenv("DJANGO_SETTINGS_MODULE", "sms_gateway_project.settings")
+    if not apps.ready:
+        django.setup()
     if module_name in sys.modules:
         del sys.modules[module_name]
     return importlib.import_module(module_name)
 
 
-def test_publish_full_state_skips_when_disabled(monkeypatch, caplog):
-    module = import_state_broadcaster()
-
-    monkeypatch.setattr(
-        module,
-        "settings",
-        SimpleNamespace(CONFIG_STATE_SYNC_ENABLED=False),
-    )
-
-    called = False
-
-    def fake_connection():
-        nonlocal called
-        called = True
-        raise AssertionError("_get_connection should not be called when sync is disabled")
-
-    monkeypatch.setattr(module, "_get_connection", fake_connection)
-
-    with caplog.at_level("INFO"):
-        module.publish_full_state.run()
-
-    assert called is False
-    assert "Configuration state sync disabled" in caplog.text
-
-
-def test_get_connection_uses_configured_virtual_host(monkeypatch):
-    module = import_state_broadcaster()
+def test_publish_to_dlq_uses_configured_virtual_host(monkeypatch):
+    module = import_messaging_tasks(monkeypatch)
 
     captured = {}
 
@@ -54,8 +35,19 @@ def test_get_connection_uses_configured_virtual_host(monkeypatch):
         captured["connection_kwargs"] = kwargs
         return SimpleNamespace(**kwargs)
 
+    class DummyChannel:
+        def queue_declare(self, **kwargs):
+            captured["queue_declared"] = kwargs
+
+        def basic_publish(self, **kwargs):
+            captured["published"] = kwargs
+
     class DummyConnection:
-        pass
+        def channel(self):
+            return DummyChannel()
+
+        def close(self):
+            captured["closed"] = True
 
     def fake_blocking_connection(params):
         captured["params_obj"] = params
@@ -82,9 +74,13 @@ def test_get_connection_uses_configured_virtual_host(monkeypatch):
         ),
     )
 
-    connection = module._get_connection()
+    message = SimpleNamespace(id=1, tracking_id="abc", error_message="oops")
 
-    assert isinstance(connection, DummyConnection)
+    module.publish_to_dlq(message)
+
     assert captured["credentials"] == ("guest", "guestpass")
     assert captured["connection_kwargs"]["host"] == "rabbitmq"
     assert captured["connection_kwargs"]["virtual_host"] == "sms_pipeline_vhost"
+    assert "queue_declared" in captured
+    assert "published" in captured
+    assert captured.get("closed") is True

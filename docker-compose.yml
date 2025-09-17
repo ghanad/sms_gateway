@@ -1,3 +1,6 @@
+x-rabbitmq-vhost: &rabbitmq-vhost
+  RABBITMQ_VHOST: sms_pipeline_vhost
+
 services:
   # --------------------------------------------------------------------------
   #  Server A (FastAPI Gateway) and its Dependencies
@@ -8,6 +11,8 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./server-a/.env
+    environment:
+      <<: *rabbitmq-vhost
     ports:
       - "8001:8000"
     depends_on:
@@ -38,6 +43,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_VHOST: sms_pipeline_vhost
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
       interval: 10s
@@ -72,6 +78,8 @@ services:
     command: python manage.py migrate --noinput
     env_file:
       - ./server-b/.env
+    environment:
+      <<: *rabbitmq-vhost
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,6 +93,8 @@ services:
     command: gunicorn --bind 0.0.0.0:9000 sms_gateway_project.wsgi:application
     env_file:
       - ./server-b/.env
+    environment:
+      <<: *rabbitmq-vhost
     ports:
       - "9000:9000"
     depends_on:
@@ -104,6 +114,8 @@ services:
     command: celery -A sms_gateway_project worker -l info
     env_file:
       - ./server-b/.env
+    environment:
+      <<: *rabbitmq-vhost
     depends_on:
       migration-b:
         condition: service_completed_successfully
@@ -121,6 +133,8 @@ services:
     command: celery -A sms_gateway_project beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     env_file:
       - ./server-b/.env
+    environment:
+      <<: *rabbitmq-vhost
     depends_on:
       migration-b:
         condition: service_completed_successfully
@@ -137,6 +151,8 @@ services:
     command: python manage.py consume_sms_queue
     env_file:
       - ./server-b/.env
+    environment:
+      <<: *rabbitmq-vhost
     depends_on:
       migration-b:
         condition: service_completed_successfully
