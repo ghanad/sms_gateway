@@ -219,7 +219,9 @@ def publish_to_dlq(message: Message) -> None:
             settings.RABBITMQ_USER, settings.RABBITMQ_PASS
         )
         params = pika.ConnectionParameters(
-            host=settings.RABBITMQ_HOST, credentials=credentials
+            host=settings.RABBITMQ_HOST,
+            credentials=credentials,
+            virtual_host=getattr(settings, "RABBITMQ_VHOST", "/"),
         )
         connection = pika.BlockingConnection(params)
         channel = connection.channel()

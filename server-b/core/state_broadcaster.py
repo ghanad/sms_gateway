@@ -10,7 +10,11 @@ from django.conf import settings
 def _get_connection():
     credentials = pika.PlainCredentials(settings.RABBITMQ_USER, settings.RABBITMQ_PASS)
     return pika.BlockingConnection(
-        pika.ConnectionParameters(host=settings.RABBITMQ_HOST, credentials=credentials)
+        pika.ConnectionParameters(
+            host=settings.RABBITMQ_HOST,
+            credentials=credentials,
+            virtual_host=getattr(settings, "RABBITMQ_VHOST", "/"),
+        )
     )
 
 
