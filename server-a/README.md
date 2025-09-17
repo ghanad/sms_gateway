@@ -30,6 +30,7 @@ Key environment variables:
 *   `PROVIDER_GATE_ENABLED`: `true` or `false` to enable/disable the provider gate logic.
 *   `IDEMPOTENCY_TTL_SECONDS`: Time-to-live for idempotency keys in Redis (e.g., `86400` for 24 hours).
 *   `QUOTA_PREFIX`: Prefix for Redis keys used for daily quotas (e.g., `quota`).
+*   `CONFIG_STATE_SYNC_ENABLED`: Enabled by default. When `true`, Server A subscribes to configuration broadcasts from Server B via RabbitMQ. When `false`, only local bootstrap configuration is used.
 *   `HEARTBEAT_INTERVAL_SECONDS`: Interval in seconds for sending heartbeat messages.
 *   `CLIENT_CONFIG`: JSON string mapping API keys to client configurations (name, is\_active, daily\_quota).
 *   `PROVIDERS_CONFIG`: JSON string mapping provider names to their configurations (is\_active, is\_operational, aliases, note).

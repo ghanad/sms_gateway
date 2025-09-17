@@ -47,6 +47,18 @@ redis_client: Optional[Redis] = None
 rabbitmq_connection: Optional[aio_pika.Connection] = None
 rabbitmq_channel: Optional[aio_pika.Channel] = None
 
+def start_config_state_consumer_if_enabled() -> None:
+    """Start background consumer when remote config sync is enabled."""
+
+    if settings.CONFIG_STATE_SYNC_ENABLED:
+        asyncio.create_task(consume_config_state())
+        logger.info("Configuration state consumer started.")
+    else:
+        logger.info(
+            "Remote configuration sync disabled. Using local configuration bootstrap only."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global redis_client, rabbitmq_connection, rabbitmq_channel
@@ -98,8 +110,7 @@ async def lifespan(app: FastAPI):
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse initial config from environment: {e}. Waiting for state broadcast.")
 
-    asyncio.create_task(consume_config_state())
-    logger.info("Configuration state consumer started.")
+    start_config_state_consumer_if_enabled()
 
     yield
 
