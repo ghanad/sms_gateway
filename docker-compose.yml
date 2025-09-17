@@ -78,8 +78,6 @@ services:
     command: python manage.py migrate --noinput
     env_file:
       - ./server-b/.env
-    environment:
-      <<: *rabbitmq-vhost
     depends_on:
       postgres:
         condition: service_healthy
@@ -93,8 +91,6 @@ services:
     command: gunicorn --bind 0.0.0.0:9000 sms_gateway_project.wsgi:application
     env_file:
       - ./server-b/.env
-    environment:
-      <<: *rabbitmq-vhost
     ports:
       - "9000:9000"
     depends_on:
@@ -114,8 +110,6 @@ services:
     command: celery -A sms_gateway_project worker -l info
     env_file:
       - ./server-b/.env
-    environment:
-      <<: *rabbitmq-vhost
     depends_on:
       migration-b:
         condition: service_completed_successfully
@@ -133,8 +127,6 @@ services:
     command: celery -A sms_gateway_project beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     env_file:
       - ./server-b/.env
-    environment:
-      <<: *rabbitmq-vhost
     depends_on:
       migration-b:
         condition: service_completed_successfully
@@ -151,8 +143,6 @@ services:
     command: python manage.py consume_sms_queue
     env_file:
       - ./server-b/.env
-    environment:
-      <<: *rabbitmq-vhost
     depends_on:
       migration-b:
         condition: service_completed_successfully
