@@ -188,3 +188,7 @@ if CONFIG_STATE_SYNC_ENABLED:
         'task': 'core.state_broadcaster.publish_full_state',
         'schedule': timedelta(seconds=60),
     }
+
+
+csrf_trusted_origins_str = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_trusted_origins_str.split(',') if origin.strip()]
