@@ -1,14 +1,18 @@
-from django.contrib.auth.models import User
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, View
-from django.urls import reverse_lazy
-from django.contrib.auth.mixins import UserPassesTestMixin
-from django.contrib.auth.forms import UserCreationForm, UserChangeForm, SetPasswordForm
-from django.shortcuts import redirect, get_object_or_404
+import json
+
 from django.contrib import messages
-from django.http import JsonResponse
+from django.contrib.auth.forms import UserChangeForm, UserCreationForm, SetPasswordForm
+from django.contrib.auth.mixins import UserPassesTestMixin
+from django.contrib.auth.models import User
+from django.contrib.auth.views import PasswordChangeView
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.views import PasswordChangeView
+from django.views.generic import CreateView, DeleteView, ListView, UpdateView, View
+
+from providers.models import SmsProvider
 
 from .forms import CustomUserChangeForm, CustomUserCreationForm
 
@@ -86,6 +90,53 @@ class ToggleUserStatusView(StaffRequiredMixin, View):
             return JsonResponse({"success": False, "error": "User not found"}, status=404)
         except Exception as exc:  # pragma: no cover - unexpected errors
             return JsonResponse({"success": False, "error": str(exc)}, status=500)
+
+
+class ConfigExportView(StaffRequiredMixin, View):
+    """Allow administrators to export user and provider state for Server A."""
+
+    filename = "config_cache.json"
+
+    def get(self, request, *args, **kwargs):
+        users = {}
+        for user in User.objects.select_related("profile").all():
+            profile = getattr(user, "profile", None)
+            api_key = getattr(profile, "api_key", None)
+            if not api_key:
+                continue
+            users[str(api_key)] = {
+                "user_id": user.id,
+                "username": user.username,
+                "is_active": user.is_active,
+                "daily_quota": getattr(profile, "daily_quota", 0) or 0,
+            }
+
+        providers = {}
+        for provider in SmsProvider.objects.all():
+            aliases = list(getattr(provider, "aliases", []) or [])
+            slug = getattr(provider, "slug", "")
+            if slug and slug not in aliases:
+                aliases.append(slug)
+
+            provider_payload = {
+                "is_active": provider.is_active,
+                "is_operational": getattr(provider, "is_operational", True),
+                "aliases": aliases,
+            }
+
+            note = getattr(provider, "note", None)
+            if note:
+                provider_payload["note"] = note
+
+            providers[provider.name] = provider_payload
+
+        payload = {"users": users, "providers": providers}
+        response = HttpResponse(
+            json.dumps(payload, indent=2, sort_keys=True),
+            content_type="application/json",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{self.filename}"'
+        return response
 
 
 class UserPasswordChangeView(StaffRequiredMixin, PasswordChangeView):

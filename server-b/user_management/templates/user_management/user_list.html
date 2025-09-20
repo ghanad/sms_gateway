@@ -13,7 +13,12 @@
                 <h1 class="title">User Management</h1>
                 <p class="subtitle">Manage users and their access levels.</p>
             </div>
-            <a href="{% url 'user_create' %}" class="btn btn-primary">Add user</a>
+            <div class="actions">
+                <a href="{% url 'config_export' %}" class="btn" download>
+                    Download config
+                </a>
+                <a href="{% url 'user_create' %}" class="btn btn-primary">Add user</a>
+            </div>
         </div>
 
         <!-- Card -->
