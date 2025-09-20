@@ -9,6 +9,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / '.env')
 
+
+def env_bool(name: str, default: str = "False") -> bool:
+    return os.environ.get(name, default).lower() in ("true", "1", "t", "yes", "y")
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -17,7 +21,7 @@ load_dotenv(BASE_DIR / '.env')
 SECRET_KEY = os.environ.get('SECRET_KEY', 'insecure-test-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = env_bool('DEBUG', 'False')
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost').split(',')
 
@@ -159,19 +163,33 @@ RABBITMQ_PASS = os.environ.get('RABBITMQ_PASS', 'guest')
 
 RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', '/')
 RABBITMQ_SMS_QUEUE = os.environ.get('RABBITMQ_SMS_QUEUE', 'sms_outbound_queue')
-RABBITMQ_SMS_DLQ_USER_NOT_FOUND = os.environ.get(
-    'RABBITMQ_SMS_DLQ_USER_NOT_FOUND', 'sms_dlq_user_not_found'
+RABBITMQ_SMS_DLQ_PERMANENT = os.environ.get(
+    'RABBITMQ_SMS_DLQ_PERMANENT',
+    os.environ.get('RABBITMQ_SMS_DLQ_USER_NOT_FOUND', 'sms_permanent_dlq'),
 )
-RABBITMQ_SMS_RETRY_WAIT_QUEUE = os.environ.get(
-    'RABBITMQ_SMS_RETRY_WAIT_QUEUE', 'sms_retry_wait_queue'
+RABBITMQ_SMS_DLQ_BAD_PAYLOAD = os.environ.get(
+    'RABBITMQ_SMS_DLQ_BAD_PAYLOAD', 'sms_bad_payload_dlq'
 )
-RABBITMQ_SMS_RETRY_WAIT_TTL_MS = int(
-    os.environ.get('RABBITMQ_SMS_RETRY_WAIT_TTL_MS', '5000')
+RABBITMQ_SMS_WAIT_QUEUE = os.environ.get(
+    'RABBITMQ_SMS_WAIT_QUEUE',
+    os.environ.get('RABBITMQ_SMS_RETRY_WAIT_QUEUE', 'sms_retry_wait_queue'),
 )
+RABBITMQ_SMS_WAIT_QUEUE_TTL_MS = int(
+    os.environ.get(
+        'RABBITMQ_SMS_WAIT_QUEUE_TTL_MS',
+        os.environ.get('RABBITMQ_SMS_RETRY_WAIT_TTL_MS', '5000'),
+    )
+)
+SMS_RETRY_MAX_ATTEMPTS = int(
+    os.environ.get('SMS_RETRY_MAX_ATTEMPTS', '5')
+)
+FEATURE_USE_DLX_FOR_PERM_ERRORS = env_bool('FEATURE_USE_DLX_FOR_PERM_ERRORS', 'True')
+FEATURE_BAD_PAYLOAD_DLQ = env_bool('FEATURE_BAD_PAYLOAD_DLQ', 'True')
+RABBITMQ_SMS_DLQ_FALLBACK = os.environ.get('RABBITMQ_SMS_DLQ_USER_NOT_FOUND')
 
 CONFIG_EVENTS_EXCHANGE = os.environ.get('CONFIG_EVENTS_EXCHANGE', 'config_events_exchange')
 CONFIG_STATE_EXCHANGE = os.environ.get('CONFIG_STATE_EXCHANGE', 'config_state_exchange')
-CONFIG_STATE_SYNC_ENABLED = os.environ.get('CONFIG_STATE_SYNC_ENABLED', 'True').lower() in ('true', '1', 't')
+CONFIG_STATE_SYNC_ENABLED = env_bool('CONFIG_STATE_SYNC_ENABLED', 'True')
 
 # Ensure the vhost starts with a /
 vhost_path = RABBITMQ_VHOST if RABBITMQ_VHOST.startswith('/') else f'/{RABBITMQ_VHOST}'

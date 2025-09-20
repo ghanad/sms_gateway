@@ -3,12 +3,17 @@ import logging
 import uuid
 
 import pika
+from pika.exceptions import AMQPError
 from celery import shared_task
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
 
+from messaging.metrics import (
+    sms_permanent_errors_total,
+    sms_publisher_confirm_nacks_total,
+)
 from messaging.models import (
     Message,
     MessageStatus,
@@ -214,6 +219,12 @@ def send_sms_with_failover(self, message_id: int):
 
 def publish_to_dlq(message: Message) -> None:
     """Publish message details to a Dead Letter Queue for inspection."""
+
+    queue_name = getattr(settings, "RABBITMQ_SMS_DLQ_PERMANENT", None)
+    if not queue_name:
+        queue_name = getattr(settings, "RABBITMQ_SMS_DLQ_FALLBACK", "sms_permanent_dlq")
+
+    connection: pika.BlockingConnection | None = None
     try:
         credentials = pika.PlainCredentials(
             settings.RABBITMQ_USER, settings.RABBITMQ_PASS
@@ -225,7 +236,9 @@ def publish_to_dlq(message: Message) -> None:
         )
         connection = pika.BlockingConnection(params)
         channel = connection.channel()
-        channel.queue_declare(queue="sms_outbound_dlq", durable=True)
+        channel.confirm_delivery()
+        channel.queue_declare(queue=queue_name, durable=True)
+
         body = json.dumps(
             {
                 "id": message.id,
@@ -233,9 +246,29 @@ def publish_to_dlq(message: Message) -> None:
                 "error": message.error_message,
             }
         )
-        channel.basic_publish(
-            exchange="", routing_key="sms_outbound_dlq", body=body
+        properties = pika.BasicProperties(
+            delivery_mode=2,
+            correlation_id=str(message.tracking_id),
+            headers={
+                "error_type": "CELERY_FAILURE",
+                "tracking_id": str(message.tracking_id),
+            },
         )
-        connection.close()
+        success = channel.basic_publish(
+            exchange="",
+            routing_key=queue_name,
+            body=body,
+            properties=properties,
+        )
+        if not success:
+            raise RuntimeError("Publisher confirm returned False")
+
+        sms_permanent_errors_total.inc()
+    except (AMQPError, RuntimeError):
+        sms_publisher_confirm_nacks_total.inc()
+        logger.exception("Failed to publish message %s to DLQ", message.id)
     except Exception:  # pragma: no cover - defensive
         logger.exception("Failed to publish message %s to DLQ", message.id)
+    finally:
+        if connection is not None:
+            connection.close()

@@ -1,5 +1,7 @@
 import importlib
 import os
+import importlib
+import os
 import sys
 from types import SimpleNamespace
 
@@ -36,11 +38,15 @@ def test_publish_to_dlq_uses_configured_virtual_host(monkeypatch):
         return SimpleNamespace(**kwargs)
 
     class DummyChannel:
+        def confirm_delivery(self):
+            captured["confirm_called"] = True
+
         def queue_declare(self, **kwargs):
             captured["queue_declared"] = kwargs
 
         def basic_publish(self, **kwargs):
             captured["published"] = kwargs
+            return True
 
     class DummyConnection:
         def channel(self):
@@ -71,16 +77,26 @@ def test_publish_to_dlq_uses_configured_virtual_host(monkeypatch):
             RABBITMQ_PASS="guestpass",
             RABBITMQ_HOST="rabbitmq",
             RABBITMQ_VHOST="sms_pipeline_vhost",
+            RABBITMQ_SMS_DLQ_PERMANENT="sms_permanent_dlq",
+            RABBITMQ_SMS_DLQ_FALLBACK=None,
         ),
     )
 
     message = SimpleNamespace(id=1, tracking_id="abc", error_message="oops")
 
+    module.sms_permanent_errors_total._value.set(0)
     module.publish_to_dlq(message)
 
     assert captured["credentials"] == ("guest", "guestpass")
     assert captured["connection_kwargs"]["host"] == "rabbitmq"
     assert captured["connection_kwargs"]["virtual_host"] == "sms_pipeline_vhost"
-    assert "queue_declared" in captured
-    assert "published" in captured
+    assert captured["queue_declared"]["queue"] == "sms_permanent_dlq"
+    assert captured["queue_declared"]["durable"] is True
+    assert captured["confirm_called"] is True
+    assert captured["published"]["routing_key"] == "sms_permanent_dlq"
+    properties = captured["published"]["properties"]
+    assert properties.delivery_mode == 2
+    assert properties.headers["error_type"] == "CELERY_FAILURE"
+    assert properties.headers["tracking_id"] == "abc"
+    assert module.sms_permanent_errors_total._value.get() == 1
     assert captured.get("closed") is True
