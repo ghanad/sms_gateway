@@ -159,6 +159,15 @@ RABBITMQ_PASS = os.environ.get('RABBITMQ_PASS', 'guest')
 
 RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', '/')
 RABBITMQ_SMS_QUEUE = os.environ.get('RABBITMQ_SMS_QUEUE', 'sms_outbound_queue')
+RABBITMQ_SMS_DLQ_USER_NOT_FOUND = os.environ.get(
+    'RABBITMQ_SMS_DLQ_USER_NOT_FOUND', 'sms_dlq_user_not_found'
+)
+RABBITMQ_SMS_RETRY_WAIT_QUEUE = os.environ.get(
+    'RABBITMQ_SMS_RETRY_WAIT_QUEUE', 'sms_retry_wait_queue'
+)
+RABBITMQ_SMS_RETRY_WAIT_TTL_MS = int(
+    os.environ.get('RABBITMQ_SMS_RETRY_WAIT_TTL_MS', '5000')
+)
 
 CONFIG_EVENTS_EXCHANGE = os.environ.get('CONFIG_EVENTS_EXCHANGE', 'config_events_exchange')
 CONFIG_STATE_EXCHANGE = os.environ.get('CONFIG_STATE_EXCHANGE', 'config_state_exchange')
