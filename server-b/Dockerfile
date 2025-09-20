@@ -53,6 +53,10 @@ WORKDIR /app
 # Change the ownership of the work directory to the non-root user.
 # This must be done BEFORE switching the user.
 RUN chown appuser:appuser /app
+# Pre-create the multiprocess metrics directory so the shared Docker volume
+# inherits writable ownership for the non-root runtime user.
+RUN mkdir -p /var/run/prometheus \
+    && chown appuser:appuser /var/run/prometheus
 # --- END: Permission Fix ---
 
 # Switch to the non-root user
