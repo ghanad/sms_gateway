@@ -14,7 +14,9 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.urls import path, include
+from django.urls import include, path
+
+from sms_gateway_project.metrics import metrics_view
 
 urlpatterns = [
     path('', include('core.urls')),
@@ -22,4 +24,5 @@ urlpatterns = [
     path('management/', include('user_management.urls')),
     path('providers/', include('providers.urls')),
     path('messages/', include('messaging.urls')),
+    path('metrics', metrics_view, name='prometheus-metrics'),
 ]
