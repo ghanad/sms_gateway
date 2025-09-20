@@ -1,6 +1,8 @@
 import json
 import uuid
 import os
+from typing import Any
+
 import django
 import pika
 from unittest.mock import MagicMock, patch, call, ANY
@@ -14,6 +16,15 @@ from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from types import SimpleNamespace
+
+from django.db import IntegrityError
+from django.db.utils import OperationalError
+
+from messaging.management.commands.consume_sms_queue import (
+    ERROR_TYPE_HEADER,
+    RETRY_HEADER,
+)
 from messaging.models import Message, MessageStatus, MessageAttemptLog, AttemptStatus
 from messaging.tasks import (
     process_outbound_sms,
@@ -191,36 +202,67 @@ class ConsumeSmsQueueCommandTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("user", password="pass")
 
-    @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
-    def test_message_persisted_and_acked(self, mock_conn):
+    def _default_envelope(self, **overrides):
+        payload = {
+            "tracking_id": str(uuid.uuid4()),
+            "user_id": self.user.id,
+            "to": "+1234567890",
+            "text": "hello",
+        }
+        payload.update(overrides)
+        return payload
+
+    def _setup_channel(self, mock_conn, body, properties=None):
         channel = MagicMock()
-        callback_holder = {}
+        channel.basic_publish.return_value = True
+        channel.basic_reject = MagicMock()
+        channel.basic_ack = MagicMock()
+        channel.basic_nack = MagicMock()
+        channel.confirm_delivery = MagicMock()
+
+        callback_holder: dict[str, Any] = {}
 
         def basic_consume(queue, on_message_callback, auto_ack=False):
             callback_holder["cb"] = on_message_callback
 
+        method = SimpleNamespace(delivery_tag=1)
+
         def start_consuming():
-            envelope = {
-                "tracking_id": str(uuid.uuid4()),
-                "user_id": self.user.id,
-                "to": "+123",
-                "text": "hello",
-            }
-            body = json.dumps(envelope).encode()
-            method = MagicMock()
-            method.delivery_tag = 1
-            callback_holder["cb"](channel, method, None, body)
+            callback_holder["cb"](
+                channel,
+                method,
+                properties or SimpleNamespace(headers={}, correlation_id=None),
+                body,
+            )
             raise KeyboardInterrupt
 
         channel.basic_consume.side_effect = basic_consume
         channel.start_consuming.side_effect = start_consuming
         mock_conn.return_value.channel.return_value = channel
+        return channel
+
+    @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
+    def test_message_persisted_and_acked(self, mock_conn):
+        envelope = self._default_envelope()
+        channel = self._setup_channel(mock_conn, json.dumps(envelope).encode())
 
         call_command("consume_sms_queue")
 
         self.assertEqual(Message.objects.count(), 1)
-        channel.queue_declare.assert_any_call(queue="sms_outbound_queue", durable=True)
-        channel.queue_declare.assert_any_call(queue="sms_dlq_user_not_found", durable=True)
+        channel.basic_ack.assert_called_once_with(delivery_tag=1)
+        channel.basic_reject.assert_not_called()
+        channel.basic_publish.assert_not_called()
+        channel.confirm_delivery.assert_called_once()
+        channel.queue_declare.assert_any_call(queue="sms_permanent_dlq", durable=True)
+        channel.queue_declare.assert_any_call(queue="sms_bad_payload_dlq", durable=True)
+        channel.queue_declare.assert_any_call(
+            queue="sms_outbound_queue",
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": "",
+                "x-dead-letter-routing-key": "sms_permanent_dlq",
+            },
+        )
         channel.queue_declare.assert_any_call(
             queue="sms_retry_wait_queue",
             durable=True,
@@ -230,209 +272,148 @@ class ConsumeSmsQueueCommandTests(TestCase):
                 "x-dead-letter-routing-key": "sms_outbound_queue",
             },
         )
-        channel.basic_ack.assert_called_once_with(delivery_tag=1)
-        channel.basic_nack.assert_not_called()
-        channel.basic_publish.assert_not_called()
         mock_conn.return_value.close.assert_called_once()
 
     @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
     def test_duplicate_message_is_acked(self, mock_conn):
-        tracking = uuid.uuid4()
+        tracking_id = uuid.uuid4()
         Message.objects.create(
             user=self.user,
-            tracking_id=tracking,
+            tracking_id=tracking_id,
             recipient="123",
             text="hello",
             initial_envelope={},
         )
 
-        channel = MagicMock()
-        callback_holder = {}
-
-        def basic_consume(queue, on_message_callback, auto_ack=False):
-            callback_holder["cb"] = on_message_callback
-
-        def start_consuming():
-            body = json.dumps(
-                {
-                    "tracking_id": str(tracking),
-                    "user_id": self.user.id,
-                    "to": "+123",
-                    "text": "hello",
-                }
-            ).encode()
-            method = MagicMock()
-            method.delivery_tag = 1
-            callback_holder["cb"](channel, method, None, body)
-            raise KeyboardInterrupt
-
-        channel.basic_consume.side_effect = basic_consume
-        channel.start_consuming.side_effect = start_consuming
-        mock_conn.return_value.channel.return_value = channel
+        envelope = self._default_envelope(tracking_id=str(tracking_id))
+        channel = self._setup_channel(mock_conn, json.dumps(envelope).encode())
 
         call_command("consume_sms_queue")
 
         self.assertEqual(Message.objects.count(), 1)
         channel.basic_ack.assert_called_once_with(delivery_tag=1)
-        channel.basic_nack.assert_not_called()
+        channel.basic_publish.assert_not_called()
+        channel.basic_reject.assert_not_called()
 
     @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
-    def test_user_not_found_routed_to_dlq(self, mock_conn):
-        channel = MagicMock()
-        callback_holder = {}
-
-        def basic_consume(queue, on_message_callback, auto_ack=False):
-            callback_holder["cb"] = on_message_callback
-
-        def start_consuming():
-            envelope = {
-                "tracking_id": str(uuid.uuid4()),
-                "user_id": 999,
-                "to": "+123",
-                "text": "hello",
-            }
-            body = json.dumps(envelope).encode()
-            method = MagicMock()
-            method.delivery_tag = 1
-            callback_holder["cb"](channel, method, None, body)
-            raise KeyboardInterrupt
-
-        channel.basic_consume.side_effect = basic_consume
-        channel.start_consuming.side_effect = start_consuming
-        channel.basic_publish.return_value = True
-        mock_conn.return_value.channel.return_value = channel
+    def test_user_not_found_rejects_to_dlq_via_dlx(self, mock_conn):
+        envelope = self._default_envelope(user_id=9999)
+        channel = self._setup_channel(mock_conn, json.dumps(envelope).encode())
 
         call_command("consume_sms_queue")
 
         self.assertEqual(Message.objects.count(), 0)
-        channel.basic_publish.assert_called_once_with(
-            exchange="",
-            routing_key="sms_dlq_user_not_found",
-            body=ANY,
-            properties=ANY,
-        )
+        channel.basic_reject.assert_called_once_with(delivery_tag=1, requeue=False)
+        channel.basic_publish.assert_not_called()
+        channel.basic_ack.assert_not_called()
+
+    @override_settings(FEATURE_USE_DLX_FOR_PERM_ERRORS=False, RABBITMQ_SMS_DLQ_FALLBACK="legacy_dlq")
+    @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
+    def test_user_not_found_manual_publish_when_dlx_disabled(self, mock_conn):
+        envelope = self._default_envelope(user_id=9999)
+        channel = self._setup_channel(mock_conn, json.dumps(envelope).encode())
+
+        call_command("consume_sms_queue")
+
+        self.assertEqual(Message.objects.count(), 0)
         channel.basic_ack.assert_called_once_with(delivery_tag=1)
-        channel.basic_nack.assert_not_called()
+        channel.basic_reject.assert_not_called()
+        channel.basic_publish.assert_called_once()
+        publish_kwargs = channel.basic_publish.call_args.kwargs
+        self.assertEqual(publish_kwargs["routing_key"], "legacy_dlq")
+        self.assertEqual(publish_kwargs["exchange"], "")
+        self.assertIsNotNone(publish_kwargs["properties"].headers.get(ERROR_TYPE_HEADER))
+        channel.queue_declare.assert_any_call(queue="legacy_dlq", durable=True)
 
     @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
-    def test_user_not_found_dlq_failure_uses_wait_queue(self, mock_conn):
-        channel = MagicMock()
-        callback_holder = {}
-
-        def basic_consume(queue, on_message_callback, auto_ack=False):
-            callback_holder["cb"] = on_message_callback
-
-        def start_consuming():
-            envelope = {
-                "tracking_id": str(uuid.uuid4()),
-                "user_id": 999,
-                "to": "+123",
-                "text": "hello",
-            }
-            body = json.dumps(envelope).encode()
-            method = MagicMock()
-            method.delivery_tag = 1
-            callback_holder["cb"](channel, method, None, body)
-            raise KeyboardInterrupt
-
-        channel.basic_consume.side_effect = basic_consume
-        channel.start_consuming.side_effect = start_consuming
-        channel.basic_publish.side_effect = [
-            pika.exceptions.AMQPError("dlq down"),
-            None,
-        ]
-        mock_conn.return_value.channel.return_value = channel
+    def test_bad_payload_json_routes_to_dlq(self, mock_conn):
+        channel = self._setup_channel(mock_conn, b"{invalid json")
 
         call_command("consume_sms_queue")
 
-        self.assertEqual(Message.objects.count(), 0)
-        self.assertEqual(channel.basic_publish.call_count, 2)
-        first_call = channel.basic_publish.call_args_list[0]
-        second_call = channel.basic_publish.call_args_list[1]
-        self.assertEqual(first_call.kwargs["exchange"], "")
-        self.assertEqual(first_call.kwargs["routing_key"], "sms_dlq_user_not_found")
-        self.assertEqual(second_call.kwargs["exchange"], "")
-        self.assertEqual(second_call.kwargs["routing_key"], "sms_retry_wait_queue")
-        self.assertEqual(first_call.kwargs["body"], second_call.kwargs["body"])
-        self.assertEqual(first_call.kwargs["properties"], second_call.kwargs["properties"])
         channel.basic_ack.assert_called_once_with(delivery_tag=1)
-        channel.basic_nack.assert_not_called()
+        self.assertEqual(channel.basic_publish.call_count, 1)
+        publish_kwargs = channel.basic_publish.call_args.kwargs
+        self.assertEqual(publish_kwargs["routing_key"], "sms_bad_payload_dlq")
+        self.assertEqual(publish_kwargs["properties"].headers.get(ERROR_TYPE_HEADER), "JSON_INVALID")
 
+    @override_settings(FEATURE_BAD_PAYLOAD_DLQ=False)
     @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
-    def test_user_not_found_wait_queue_failure_requeues(self, mock_conn):
-        channel = MagicMock()
-        callback_holder = {}
-
-        def basic_consume(queue, on_message_callback, auto_ack=False):
-            callback_holder["cb"] = on_message_callback
-
-        def start_consuming():
-            envelope = {
-                "tracking_id": str(uuid.uuid4()),
-                "user_id": 999,
-                "to": "+123",
-                "text": "hello",
-            }
-            body = json.dumps(envelope).encode()
-            method = MagicMock()
-            method.delivery_tag = 1
-            callback_holder["cb"](channel, method, None, body)
-            raise KeyboardInterrupt
-
-        channel.basic_consume.side_effect = basic_consume
-        channel.start_consuming.side_effect = start_consuming
-        channel.basic_publish.side_effect = [
-            pika.exceptions.AMQPError("dlq down"),
-            pika.exceptions.AMQPError("wait down"),
-        ]
-        mock_conn.return_value.channel.return_value = channel
+    def test_bad_payload_ack_when_feature_disabled(self, mock_conn):
+        channel = self._setup_channel(mock_conn, b"{invalid json")
 
         call_command("consume_sms_queue")
 
-        self.assertEqual(Message.objects.count(), 0)
-        self.assertEqual(channel.basic_publish.call_count, 2)
+        channel.basic_ack.assert_called_once_with(delivery_tag=1)
+        channel.basic_publish.assert_not_called()
+
+    @patch("messaging.management.commands.consume_sms_queue.Message.objects.get_or_create")
+    @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
+    def test_transient_error_publishes_to_wait_queue(self, mock_conn, mock_get_or_create):
+        mock_get_or_create.side_effect = OperationalError("db down")
+        envelope = self._default_envelope()
+        channel = self._setup_channel(mock_conn, json.dumps(envelope).encode())
+
+        call_command("consume_sms_queue")
+
+        channel.basic_ack.assert_called_once_with(delivery_tag=1)
+        channel.basic_reject.assert_not_called()
+        self.assertEqual(channel.basic_publish.call_count, 1)
+        publish_kwargs = channel.basic_publish.call_args.kwargs
+        self.assertEqual(publish_kwargs["routing_key"], "sms_retry_wait_queue")
+        headers = publish_kwargs["properties"].headers
+        self.assertEqual(headers.get(RETRY_HEADER), 1)
+        self.assertEqual(headers.get("retry_count"), 1)
+        self.assertEqual(headers.get(ERROR_TYPE_HEADER), "TRANSIENT_ERROR")
+
+    @patch("messaging.management.commands.consume_sms_queue.Message.objects.get_or_create")
+    @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
+    def test_wait_queue_publish_failure_triggers_nack(self, mock_conn, mock_get_or_create):
+        mock_get_or_create.side_effect = OperationalError("db down")
+        envelope = self._default_envelope()
+        channel = self._setup_channel(mock_conn, json.dumps(envelope).encode())
+        channel.basic_publish.return_value = False
+
+        call_command("consume_sms_queue")
+
         channel.basic_ack.assert_not_called()
         channel.basic_nack.assert_called_once_with(delivery_tag=1, requeue=True)
 
+    @patch("messaging.management.commands.consume_sms_queue.Message.objects.get_or_create")
     @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
-    @patch("messaging.management.commands.consume_sms_queue.User.objects.get")
-    def test_db_error_routes_through_wait_queue(self, mock_user_get, mock_conn):
-        mock_user_get.side_effect = Exception("db down")
-        channel = MagicMock()
-        callback_holder = {}
-
-        def basic_consume(queue, on_message_callback, auto_ack=False):
-            callback_holder["cb"] = on_message_callback
-
-        def start_consuming():
-            envelope = {
-                "tracking_id": str(uuid.uuid4()),
-                "user_id": self.user.id,
-                "to": "+123",
-                "text": "hello",
-            }
-            body = json.dumps(envelope).encode()
-            method = MagicMock()
-            method.delivery_tag = 1
-            callback_holder["cb"](channel, method, None, body)
-            raise KeyboardInterrupt
-
-        channel.basic_consume.side_effect = basic_consume
-        channel.start_consuming.side_effect = start_consuming
-        channel.basic_publish.return_value = True
-        mock_conn.return_value.channel.return_value = channel
+    def test_retry_limit_triggers_permanent_reject(self, mock_conn, mock_get_or_create):
+        mock_get_or_create.side_effect = OperationalError("db down")
+        envelope = self._default_envelope()
+        properties = SimpleNamespace(headers={RETRY_HEADER: 5}, correlation_id=None)
+        channel = self._setup_channel(mock_conn, json.dumps(envelope).encode(), properties=properties)
 
         call_command("consume_sms_queue")
 
-        self.assertEqual(Message.objects.count(), 0)
-        channel.basic_publish.assert_called_once_with(
-            exchange="",
-            routing_key="sms_retry_wait_queue",
-            body=ANY,
-            properties=ANY,
-        )
+        channel.basic_reject.assert_called_once_with(delivery_tag=1, requeue=False)
+        channel.basic_publish.assert_not_called()
+        channel.basic_ack.assert_not_called()
+
+    @patch("messaging.management.commands.consume_sms_queue.Message.objects.get_or_create")
+    @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
+    def test_integrity_error_is_acked(self, mock_conn, mock_get_or_create):
+        mock_get_or_create.side_effect = IntegrityError("duplicate")
+        envelope = self._default_envelope()
+        channel = self._setup_channel(mock_conn, json.dumps(envelope).encode())
+
+        call_command("consume_sms_queue")
+
         channel.basic_ack.assert_called_once_with(delivery_tag=1)
-        channel.basic_nack.assert_not_called()
+        channel.basic_publish.assert_not_called()
+        channel.basic_reject.assert_not_called()
+
+    @patch("messaging.management.commands.consume_sms_queue.pika.BlockingConnection")
+    def test_bad_payload_publish_failure_nacks(self, mock_conn):
+        channel = self._setup_channel(mock_conn, b"{invalid json")
+        channel.basic_publish.return_value = False
+
+        call_command("consume_sms_queue")
+
+        channel.basic_nack.assert_called_once_with(delivery_tag=1, requeue=True)
 
 
 class DispatchPendingMessagesTests(TestCase):

@@ -11,3 +11,4 @@ whitenoise
 gunicorn
 celery
 django-celery-beat
+prometheus-client
