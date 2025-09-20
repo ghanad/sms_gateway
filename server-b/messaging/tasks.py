@@ -17,6 +17,7 @@ from messaging.models import (
 )
 from providers.models import SmsProvider
 from providers.adapters import get_provider_adapter
+from sms_gateway_project.metrics import SMS_MESSAGES_PROCESSED_TOTAL
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,8 @@ def process_outbound_sms(self, envelope: dict):
         status=MessageStatus.PROCESSING,
         initial_envelope=envelope,
     )
+
+    SMS_MESSAGES_PROCESSED_TOTAL.inc()
 
     provider_name = None
     providers_list = envelope.get("providers_effective") or []

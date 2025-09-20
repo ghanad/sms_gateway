@@ -88,11 +88,18 @@ services:
     build:
       context: ./server-b
       dockerfile: Dockerfile
-    command: gunicorn --bind 0.0.0.0:9000 sms_gateway_project.wsgi:application
+    command: >
+      /bin/sh -c "mkdir -p /var/run/prometheus &&
+      rm -f /var/run/prometheus/* &&
+      exec gunicorn --bind 0.0.0.0:9000 sms_gateway_project.wsgi:application"
     env_file:
       - ./server-b/.env
+    environment:
+      PROMETHEUS_MULTIPROC_DIR: /var/run/prometheus
     ports:
       - "9000:9000"
+    volumes:
+      - prometheus-multiproc:/var/run/prometheus
     depends_on:
       migration-b:
         condition: service_completed_successfully
@@ -107,9 +114,13 @@ services:
     build:
       context: ./server-b
       dockerfile: Dockerfile
-    command: celery -A sms_gateway_project worker -l info
+    command: >
+      /bin/sh -c "mkdir -p /var/run/prometheus &&
+      exec celery -A sms_gateway_project worker -l info"
     env_file:
       - ./server-b/.env
+    environment:
+      PROMETHEUS_MULTIPROC_DIR: /var/run/prometheus
     depends_on:
       migration-b:
         condition: service_completed_successfully
@@ -117,6 +128,10 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      server-b:
+        condition: service_started
+    volumes:
+      - prometheus-multiproc:/var/run/prometheus
 
   # Step 4: The Celery Beat scheduler for periodic tasks.
   # Also waits for migrations to be done.
@@ -124,9 +139,13 @@ services:
     build:
       context: ./server-b
       dockerfile: Dockerfile
-    command: celery -A sms_gateway_project beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    command: >
+      /bin/sh -c "mkdir -p /var/run/prometheus &&
+      exec celery -A sms_gateway_project beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler"
     env_file:
       - ./server-b/.env
+    environment:
+      PROMETHEUS_MULTIPROC_DIR: /var/run/prometheus
     depends_on:
       migration-b:
         condition: service_completed_successfully
@@ -134,6 +153,10 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      server-b:
+        condition: service_started
+    volumes:
+      - prometheus-multiproc:/var/run/prometheus
 
   # Step 5: RabbitMQ consumer service for outbound SMS.
   sms-consumer-b:
@@ -150,3 +173,6 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+
+volumes:
+  prometheus-multiproc:
