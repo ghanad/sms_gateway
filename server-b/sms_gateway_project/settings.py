@@ -141,7 +141,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # allauth settings
-LOGIN_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL = '/messages/my-messages/'
 ACCOUNT_LOGOUT_REDIRECT_URL = '/'
 ACCOUNT_LOGIN_METHODS = ['username']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
