@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<article class="space-y-8 text-gray-900 leading-8" dir="rtl">
+    <header class="space-y-2">
+        <h1 class="text-3xl font-extrabold text-slate-900">راهنمای کاربری API درگاه پیامک سرور A</h1>
+        <p class="text-base text-slate-600">
+            این صفحه برای معرفی سادهٔ API ارسال پیامک آماده شده است تا بتوانید به سرعت پیامک‌های خود را از طریق سرور A ارسال کنید.
+        </p>
+    </header>
+
+    <section class="space-y-3">
+        <h2 class="text-2xl font-semibold text-slate-900">معرفی</h2>
+        <p>
+            این API برای ارسال پیامک‌های ساده طراحی شده است و به شما کمک می‌کند پیام‌های متنی خود را به سادگی ارسال کنید.
+            نشانی سرویس در محیط محلی به صورت
+            <code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">http://localhost:8001</code>
+            در دسترس است.
+        </p>
+    </section>
+
+    <section class="space-y-3">
+        <h2 class="text-2xl font-semibold text-slate-900">احراز هویت</h2>
+        <p>
+            تمام درخواست‌ها باید شامل کلید API باشند. این کلید باید در هدر درخواست با عنوان
+            <code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">API-Key</code>
+            قرار بگیرد. مقدار
+            <code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">YOUR_API_KEY</code>
+            را با کلید واقعی خود جایگزین کنید تا دسترسی شما پذیرفته شود.
+        </p>
+    </section>
+
+    <section class="space-y-3">
+        <h2 class="text-2xl font-semibold text-slate-900">ارسال پیامک</h2>
+        <ul class="list-disc pr-6 space-y-2">
+            <li>
+                <strong>آدرس فراخوانی (Endpoint):</strong>
+                <code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">POST /api/v1/sms/send</code>
+            </li>
+            <li>
+                <strong>هدرهای لازم:</strong>
+                <ul class="list-disc pr-6 space-y-1">
+                    <li><code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">Content-Type: application/json</code></li>
+                    <li><code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">API-Key</code></li>
+                </ul>
+            </li>
+            <li>
+                <strong>بدنه درخواست (JSON):</strong>
+                <ul class="list-disc pr-6 space-y-1">
+                    <li><code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">to</code>: شماره گیرنده در قالب بین‌المللی E.164 مانند <code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">+98912...</code></li>
+                    <li><code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">text</code>: متن پیامکی که می‌خواهید ارسال کنید</li>
+                </ul>
+            </li>
+        </ul>
+    </section>
+
+    <section class="space-y-3">
+        <h2 class="text-2xl font-semibold text-slate-900">نمونه‌های کد</h2>
+        <div class="space-y-4">
+            <div class="space-y-2">
+                <h3 class="text-xl font-semibold text-slate-900">نمونه cURL</h3>
+                <pre class="bg-slate-100 text-slate-900 rounded-xl p-4 overflow-x-auto" dir="ltr"><code>curl -X POST http://localhost:8001/api/v1/sms/send \
+  -H "Content-Type: application/json" \
+  -H "API-Key: YOUR_API_KEY" \
+  -d '{
+    "to": "+989121234567",
+    "text": "سلام! این یک پیام تستی است."
+  }'</code></pre>
+            </div>
+            <div class="space-y-2">
+                <h3 class="text-xl font-semibold text-slate-900">نمونه Python با کتابخانه requests</h3>
+                <pre class="bg-slate-100 text-slate-900 rounded-xl p-4 overflow-x-auto" dir="ltr"><code>import requests
+
+url = "http://localhost:8001/api/v1/sms/send"
+headers = {
+    "Content-Type": "application/json",
+    "API-Key": "YOUR_API_KEY"
+}
+payload = {
+    "to": "+989121234567",
+    "text": "سلام! این یک پیام تستی است."
+}
+
+response = requests.post(url, json=payload, headers=headers)
+
+print("وضعیت:", response.status_code)
+print("پاسخ:", response.json())</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <section class="space-y-3">
+        <h2 class="text-2xl font-semibold text-slate-900">پاسخ‌ها</h2>
+        <div class="space-y-4">
+            <div class="space-y-2">
+                <h3 class="text-xl font-semibold text-slate-900">پاسخ موفق (202 Accepted)</h3>
+                <pre class="bg-slate-100 text-slate-900 rounded-xl p-4 overflow-x-auto" dir="ltr"><code>{
+  "status": "accepted",
+  "tracking_id": "abc123xyz"
+}</code></pre>
+                <p>
+                    در این پاسخ، مقدار
+                    <code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">tracking_id</code>
+                    برای پیگیری وضعیت پیام در مراحل بعدی استفاده می‌شود.
+                </p>
+            </div>
+            <div class="space-y-2">
+                <h3 class="text-xl font-semibold text-slate-900">پاسخ خطا (نمونه UNAUTHORIZED)</h3>
+                <pre class="bg-slate-100 text-slate-900 rounded-xl p-4 overflow-x-auto" dir="ltr"><code>{
+  "detail": "کلید API نامعتبر است."
+}</code></pre>
+                <p>
+                    این پاسخ زمانی برگردانده می‌شود که کلید ارائه‌شده نادرست باشد یا در سیستم ثبت نشده باشد.
+                </p>
+            </div>
+        </div>
+    </section>
+</article>
+{% endblock %}
