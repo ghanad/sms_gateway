@@ -526,6 +526,21 @@ class SendSmsWithFailoverTaskTests(TestCase):
         self.assertEqual(logs[1].provider, self.provider2)
         self.assertEqual(logs[1].status, AttemptStatus.SUCCESS)
 
+    @patch("messaging.tasks.get_provider_adapter")
+    @patch("messaging.tasks.SMS_MESSAGES_PROCESSED_TOTAL")
+    def test_increments_processed_total_metric(self, mock_metric, mock_get_adapter):
+        adapter = MagicMock()
+        adapter.send_sms.return_value = {
+            "status": "success",
+            "message_id": "metric-test",
+            "raw_response": {},
+        }
+        mock_get_adapter.return_value = adapter
+
+        send_sms_with_failover.run(self.message.id)
+
+        mock_metric.inc.assert_called_once_with()
+
     @patch("messaging.tasks.publish_to_dlq")
     @patch("messaging.tasks.get_provider_adapter")
     def test_retry_on_transient_failure(self, mock_get_adapter, mock_publish):

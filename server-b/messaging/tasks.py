@@ -115,6 +115,7 @@ def dispatch_pending_messages(batch_size: int = 50):
 def send_sms_with_failover(self, message_id: int):
     """Send an SMS using available providers with retry and intelligent failover."""
     message = Message.objects.get(pk=message_id)
+    SMS_MESSAGES_PROCESSED_TOTAL.inc()
     envelope = message.initial_envelope or {}
 
     # Determine provider list
