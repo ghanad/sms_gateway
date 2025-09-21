@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 import uuid
 
 import pika
@@ -17,9 +18,60 @@ from messaging.models import (
 )
 from providers.models import SmsProvider
 from providers.adapters import get_provider_adapter
-from sms_gateway_project.metrics import SMS_MESSAGES_PROCESSED_TOTAL
+from sms_gateway_project.metrics import (
+    SMS_CELERY_TASK_RETRIES_TOTAL,
+    SMS_DLQ_MESSAGES_TOTAL,
+    SMS_MESSAGE_FINAL_STATUS_TOTAL,
+    SMS_MESSAGES_PENDING_GAUGE,
+    SMS_MESSAGES_PROCESSED_TOTAL,
+    SMS_PROCESSING_DURATION_SECONDS,
+    SMS_PROVIDER_SEND_ATTEMPTS_TOTAL,
+    SMS_PROVIDER_SEND_LATENCY_SECONDS,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _provider_label(provider: SmsProvider) -> str:
+    slug = getattr(provider, "slug", None)
+    if slug:
+        return str(slug)
+    name = getattr(provider, "name", None)
+    return str(name) if name else "unknown"
+
+
+def _observe_provider_attempt(provider: SmsProvider, result: dict, elapsed: float) -> None:
+    provider_name = _provider_label(provider)
+    outcome = "success"
+    if result.get("status") != "success":
+        outcome_type = result.get("type")
+        if outcome_type == "transient":
+            outcome = "transient_failure"
+        else:
+            outcome = "permanent_failure"
+    SMS_PROVIDER_SEND_ATTEMPTS_TOTAL.labels(provider=provider_name, outcome=outcome).inc()
+    SMS_PROVIDER_SEND_LATENCY_SECONDS.labels(provider=provider_name).observe(max(elapsed, 0.0))
+
+
+def _record_final_metrics(message: Message, finalized_at=None) -> None:
+    final_status = getattr(message, "status", None)
+    if final_status:
+        SMS_MESSAGE_FINAL_STATUS_TOTAL.labels(status=final_status).inc()
+
+    if finalized_at is None:
+        finalized_at = timezone.now()
+
+    created_at = getattr(message, "created_at", None)
+    if created_at is None:
+        return
+
+    try:
+        duration = (finalized_at - created_at).total_seconds()
+    except Exception:  # pragma: no cover - defensive guard
+        return
+
+    if duration >= 0:
+        SMS_PROCESSING_DURATION_SECONDS.observe(duration)
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
 def process_outbound_sms(self, envelope: dict):
@@ -56,9 +108,11 @@ def process_outbound_sms(self, envelope: dict):
         provider_name = providers_list[0]
 
     if not provider_name:
+        finalized_at = timezone.now()
         message.status = MessageStatus.FAILED
         message.error_message = "No provider specified"
         message.save(update_fields=["status", "error_message"])
+        _record_final_metrics(message, finalized_at=finalized_at)
         logger.error("No provider specified for message %s", message.tracking_id)
         return
 
@@ -67,9 +121,11 @@ def process_outbound_sms(self, envelope: dict):
         provider = SmsProvider.objects.filter(name__iexact=provider_name).first()
 
     if not provider:
+        finalized_at = timezone.now()
         message.status = MessageStatus.FAILED
         message.error_message = f"Provider {provider_name} not found"
         message.save(update_fields=["status", "error_message"])
+        _record_final_metrics(message, finalized_at=finalized_at)
         logger.error("Provider %s not found for message %s", provider_name, message.tracking_id)
         return
 
@@ -78,19 +134,25 @@ def process_outbound_sms(self, envelope: dict):
     message.save(update_fields=["provider", "send_attempts"])
 
     adapter = get_provider_adapter(provider)
+    start_time = time.perf_counter()
     result = adapter.send_sms(message.recipient, message.text)
+    elapsed = time.perf_counter() - start_time
+    _observe_provider_attempt(provider, result, elapsed)
 
     if result.get("status") == "success":
+        finalized_at = timezone.now()
         message.status = MessageStatus.SENT_TO_PROVIDER
         message.provider_message_id = result.get("message_id")
         message.provider_response = result.get("raw_response")
-        message.sent_at = timezone.now()
+        message.sent_at = finalized_at
         message.error_message = ""
     else:
+        finalized_at = timezone.now()
         message.status = MessageStatus.FAILED
         message.error_message = result.get("reason")
         message.provider_response = result.get("raw_response")
     message.save()
+    _record_final_metrics(message, finalized_at=finalized_at)
 
 
 @shared_task
@@ -106,6 +168,9 @@ def dispatch_pending_messages(batch_size: int = 50):
         if ids:
             Message.objects.filter(id__in=ids).update(status=MessageStatus.PROCESSING)
             message_ids = ids
+
+    pending_count = Message.objects.filter(status=MessageStatus.PENDING).count()
+    SMS_MESSAGES_PENDING_GAUGE.set(pending_count)
 
     for mid in message_ids:
         send_sms_with_failover.delay(mid)
@@ -141,6 +206,7 @@ def send_sms_with_failover(self, message_id: int):
 
     for provider in providers:
         adapter = get_provider_adapter(provider)
+        start_time = time.perf_counter()
         try:
             result = adapter.send_sms(message.recipient, message.text)
         except Exception as exc:  # pragma: no cover - defensive
@@ -150,6 +216,8 @@ def send_sms_with_failover(self, message_id: int):
                 "reason": str(exc),
                 "raw_response": None,
             }
+        elapsed = time.perf_counter() - start_time
+        _observe_provider_attempt(provider, result, elapsed)
 
         status = (
             AttemptStatus.SUCCESS
@@ -166,13 +234,15 @@ def send_sms_with_failover(self, message_id: int):
 
         if result.get("status") == "success":
             sent_successfully = True
+            finalized_at = timezone.now()
             message.status = MessageStatus.SENT_TO_PROVIDER
             message.provider = provider
             message.provider_message_id = result.get("message_id")
             message.provider_response = result.get("raw_response")
-            message.sent_at = timezone.now()
+            message.sent_at = finalized_at
             message.error_message = ""
             message.save()
+            _record_final_metrics(message, finalized_at=finalized_at)
             break
 
         # Failure case
@@ -183,9 +253,11 @@ def send_sms_with_failover(self, message_id: int):
             continue
 
         # Permanent failure - fail fast
+        finalized_at = timezone.now()
         message.status = MessageStatus.FAILED
         message.error_message = reason
         message.save(update_fields=["status", "error_message"])
+        _record_final_metrics(message, finalized_at=finalized_at)
         publish_to_dlq(message)
         return
 
@@ -193,9 +265,11 @@ def send_sms_with_failover(self, message_id: int):
         return
 
     if all_failures_were_permanent:
+        finalized_at = timezone.now()
         message.status = MessageStatus.FAILED
         message.error_message = "; ".join(error_logs)
         message.save(update_fields=["status", "error_message"])
+        _record_final_metrics(message, finalized_at=finalized_at)
         publish_to_dlq(message)
         return
 
@@ -206,12 +280,15 @@ def send_sms_with_failover(self, message_id: int):
 
     if self.request.retries < self.max_retries:
         delay = 60 * (2 ** self.request.retries)
+        SMS_CELERY_TASK_RETRIES_TOTAL.inc()
         raise self.retry(countdown=delay)
 
     # Retry limit exceeded
+    finalized_at = timezone.now()
     message.status = MessageStatus.FAILED
     message.error_message = "; ".join(error_logs)
     message.save(update_fields=["status", "error_message"])
+    _record_final_metrics(message, finalized_at=finalized_at)
     publish_to_dlq(message)
 
 
@@ -239,6 +316,7 @@ def publish_to_dlq(message: Message) -> None:
         channel.basic_publish(
             exchange="", routing_key="sms_outbound_dlq", body=body
         )
+        SMS_DLQ_MESSAGES_TOTAL.inc()
         connection.close()
     except Exception:  # pragma: no cover - defensive
         logger.exception("Failed to publish message %s to DLQ", message.id)
