@@ -23,6 +23,8 @@ METRIC_NAMES = [
     "SMS_PROCESSING_DURATION_SECONDS",
     "SMS_PROVIDER_SEND_ATTEMPTS_TOTAL",
     "SMS_PROVIDER_SEND_LATENCY_SECONDS",
+    "SMS_PROVIDER_FAILOVERS_TOTAL",
+    "SMS_PROVIDER_BALANCE_GAUGE",
     "SMS_CELERY_TASK_RETRIES_TOTAL",
     "SMS_DLQ_MESSAGES_TOTAL",
 ]
@@ -145,6 +147,7 @@ def test_send_sms_with_failover_records_success_metrics(monkeypatch):
 
     module.SMS_PROVIDER_SEND_ATTEMPTS_TOTAL.clear()
     reset_histogram(module.SMS_PROVIDER_SEND_LATENCY_SECONDS)
+    module.SMS_PROVIDER_FAILOVERS_TOTAL.clear()
     module.SMS_MESSAGE_FINAL_STATUS_TOTAL.clear()
     reset_histogram(module.SMS_PROCESSING_DURATION_SECONDS)
     module.SMS_CELERY_TASK_RETRIES_TOTAL.reset()
@@ -310,11 +313,193 @@ def test_send_sms_with_failover_records_success_metrics(monkeypatch):
     assert module.SMS_DLQ_MESSAGES_TOTAL._value.get() == 0
 
 
+def test_send_sms_with_failover_records_failover_metric(monkeypatch):
+    module = import_messaging_tasks(monkeypatch)
+
+    module.SMS_PROVIDER_SEND_ATTEMPTS_TOTAL.clear()
+    reset_histogram(module.SMS_PROVIDER_SEND_LATENCY_SECONDS)
+    module.SMS_PROVIDER_FAILOVERS_TOTAL.clear()
+    module.SMS_MESSAGE_FINAL_STATUS_TOTAL.clear()
+    reset_histogram(module.SMS_PROCESSING_DURATION_SECONDS)
+    module.SMS_CELERY_TASK_RETRIES_TOTAL.reset()
+    module.SMS_DLQ_MESSAGES_TOTAL.reset()
+
+    fake_now = datetime.datetime(2024, 1, 1, 12, 30, tzinfo=datetime.timezone.utc)
+    created_at = fake_now - datetime.timedelta(seconds=40)
+
+    class DummyMessage:
+        def __init__(self):
+            self.id = 2
+            self.recipient = "+15555555"
+            self.text = "Fail over"
+            self.initial_envelope = {"providers_effective": ["alpha", "beta"]}
+            self.send_attempts = 0
+            self.status = module.MessageStatus.PENDING
+            self.provider = None
+            self.provider_message_id = None
+            self.provider_response = None
+            self.sent_at = None
+            self.error_message = ""
+            self.created_at = created_at
+            self.saved = []
+
+        def save(self, update_fields=None):
+            self.saved.append(update_fields)
+
+    message = DummyMessage()
+
+    monkeypatch.setattr(
+        module,
+        "Message",
+        SimpleNamespace(objects=SimpleNamespace(get=lambda pk: message)),
+    )
+
+    attempt_logs = []
+    monkeypatch.setattr(
+        module,
+        "MessageAttemptLog",
+        SimpleNamespace(
+            objects=SimpleNamespace(create=lambda **kwargs: attempt_logs.append(kwargs))
+        ),
+    )
+
+    class DummyProvider:
+        def __init__(self, slug, name):
+            self.slug = slug
+            self.name = name
+            self.is_active = True
+
+    providers = [
+        DummyProvider("alpha", "AlphaSMS"),
+        DummyProvider("beta", "BetaSMS"),
+    ]
+
+    class DummyProviderQuerySet(list):
+        def first(self):
+            return self[0] if self else None
+
+        def order_by(self, *args, **kwargs):
+            return self
+
+    class DummyProviderManager:
+        def __init__(self, data):
+            self._data = data
+
+        def filter(self, **kwargs):
+            data = self._data
+            if "slug__iexact" in kwargs:
+                slug = kwargs["slug__iexact"].lower()
+                matched = [p for p in data if p.slug.lower() == slug]
+            elif "name__iexact" in kwargs:
+                name = kwargs["name__iexact"].lower()
+                matched = [p for p in data if p.name.lower() == name]
+            elif "is_active" in kwargs:
+                if kwargs.get("is_active"):
+                    matched = [p for p in data if getattr(p, "is_active", True)]
+                else:
+                    matched = []
+            else:
+                matched = data
+            return DummyProviderQuerySet(matched)
+
+    monkeypatch.setattr(
+        module,
+        "SmsProvider",
+        SimpleNamespace(objects=DummyProviderManager(providers)),
+    )
+
+    def make_adapter(provider):
+        if provider.slug == "alpha":
+            return SimpleNamespace(
+                send_sms=lambda recipient, message_text: {
+                    "status": "failure",
+                    "type": "transient",
+                    "reason": "Temporary",
+                    "raw_response": {"error": "temp"},
+                }
+            )
+
+        return SimpleNamespace(
+            send_sms=lambda recipient, message_text: {
+                "status": "success",
+                "message_id": "beta-1",
+                "raw_response": {"ok": True},
+            }
+        )
+
+    monkeypatch.setattr(module, "get_provider_adapter", make_adapter)
+
+    perf_values = iter([10.0, 10.3, 20.0, 20.6])
+    monkeypatch.setattr(module.time, "perf_counter", lambda: next(perf_values))
+    monkeypatch.setattr(module.timezone, "now", lambda: fake_now)
+    task_request = module.send_sms_with_failover.request
+    monkeypatch.setattr(task_request, "retries", 0, raising=False)
+
+    set_task_globals(
+        module.send_sms_with_failover,
+        monkeypatch,
+        Message=module.Message,
+        SmsProvider=module.SmsProvider,
+        MessageAttemptLog=module.MessageAttemptLog,
+        get_provider_adapter=module.get_provider_adapter,
+        publish_to_dlq=module.publish_to_dlq,
+        timezone=module.timezone,
+    )
+
+    module.send_sms_with_failover.run(message.id)
+
+    assert message.status == module.MessageStatus.SENT_TO_PROVIDER
+    assert message.provider is providers[1]
+    assert message.send_attempts == 1
+    assert len(attempt_logs) == 2
+
+    failover_metric = module.SMS_PROVIDER_FAILOVERS_TOTAL.labels(
+        from_provider="alpha", to_provider="beta"
+    )._value.get()
+    assert failover_metric == 1
+
+    assert (
+        module.SMS_PROVIDER_SEND_ATTEMPTS_TOTAL
+        .labels(provider="alpha", outcome="transient_failure")
+        ._value.get()
+        == 1
+    )
+    assert (
+        module.SMS_PROVIDER_SEND_ATTEMPTS_TOTAL
+        .labels(provider="beta", outcome="success")
+        ._value.get()
+        == 1
+    )
+    assert (
+        module.SMS_PROVIDER_SEND_LATENCY_SECONDS.labels(provider="alpha")._sum.get()
+        == pytest.approx(0.3)
+    )
+    assert (
+        module.SMS_PROVIDER_SEND_LATENCY_SECONDS.labels(provider="beta")._sum.get()
+        == pytest.approx(0.6)
+    )
+    success_label = module.MessageStatus.SENT_TO_PROVIDER
+    assert (
+        module.SMS_MESSAGE_FINAL_STATUS_TOTAL.labels(status=success_label)._value.get()
+        == 1
+    )
+    duration_samples = module.SMS_PROCESSING_DURATION_SECONDS.collect()[0].samples
+    duration_sum = next(
+        sample.value
+        for sample in duration_samples
+        if sample.name == "sms_processing_duration_seconds_sum"
+    )
+    assert duration_sum == pytest.approx(40.0)
+    assert module.SMS_CELERY_TASK_RETRIES_TOTAL._value.get() == 0
+    assert module.SMS_DLQ_MESSAGES_TOTAL._value.get() == 0
+
+
 def test_send_sms_with_failover_transient_failure_increments_retry_metric(monkeypatch):
     module = import_messaging_tasks(monkeypatch)
 
     module.SMS_PROVIDER_SEND_ATTEMPTS_TOTAL.clear()
     reset_histogram(module.SMS_PROVIDER_SEND_LATENCY_SECONDS)
+    module.SMS_PROVIDER_FAILOVERS_TOTAL.clear()
     module.SMS_MESSAGE_FINAL_STATUS_TOTAL.clear()
     reset_histogram(module.SMS_PROCESSING_DURATION_SECONDS)
     module.SMS_CELERY_TASK_RETRIES_TOTAL.reset()
@@ -538,6 +723,7 @@ def test_send_sms_with_failover_records_permanent_failure_metrics(monkeypatch):
 
     module.SMS_PROVIDER_SEND_ATTEMPTS_TOTAL.clear()
     reset_histogram(module.SMS_PROVIDER_SEND_LATENCY_SECONDS)
+    module.SMS_PROVIDER_FAILOVERS_TOTAL.clear()
     module.SMS_MESSAGE_FINAL_STATUS_TOTAL.clear()
     reset_histogram(module.SMS_PROCESSING_DURATION_SECONDS)
     module.SMS_CELERY_TASK_RETRIES_TOTAL.reset()

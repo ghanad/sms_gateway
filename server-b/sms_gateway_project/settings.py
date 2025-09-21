@@ -188,6 +188,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'messaging.tasks.dispatch_pending_messages',
         'schedule': timedelta(seconds=10),
     },
+    'update-provider-balance-metrics': {
+        'task': 'providers.tasks.update_provider_balance_metrics',
+        'schedule': timedelta(minutes=15),
+    },
 
 }
 

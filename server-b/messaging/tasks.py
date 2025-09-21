@@ -27,6 +27,7 @@ from sms_gateway_project.metrics import (
     SMS_PROCESSING_DURATION_SECONDS,
     SMS_PROVIDER_SEND_ATTEMPTS_TOTAL,
     SMS_PROVIDER_SEND_LATENCY_SECONDS,
+    SMS_PROVIDER_FAILOVERS_TOTAL,
 )
 
 logger = logging.getLogger(__name__)
@@ -204,7 +205,7 @@ def send_sms_with_failover(self, message_id: int):
     all_failures_were_permanent = True
     error_logs: list[str] = []
 
-    for provider in providers:
+    for index, provider in enumerate(providers):
         adapter = get_provider_adapter(provider)
         start_time = time.perf_counter()
         try:
@@ -250,6 +251,12 @@ def send_sms_with_failover(self, message_id: int):
         error_logs.append(reason)
         if result.get("type") == "transient":
             all_failures_were_permanent = False
+            if index + 1 < len(providers):
+                next_provider = providers[index + 1]
+                SMS_PROVIDER_FAILOVERS_TOTAL.labels(
+                    from_provider=_provider_label(provider),
+                    to_provider=_provider_label(next_provider),
+                ).inc()
             continue
 
         # Permanent failure - fail fast

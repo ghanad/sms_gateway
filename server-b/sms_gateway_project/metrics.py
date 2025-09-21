@@ -60,6 +60,21 @@ SMS_PROVIDER_SEND_LATENCY_SECONDS: Final[Histogram] = Histogram(
 )
 
 
+SMS_PROVIDER_FAILOVERS_TOTAL: Final[Counter] = Counter(
+    "sms_provider_failovers_total",
+    "Total number of provider failovers triggered by transient errors.",
+    labelnames=("from_provider", "to_provider"),
+)
+
+
+SMS_PROVIDER_BALANCE_GAUGE: Final[Gauge] = Gauge(
+    "sms_provider_balance_gauge",
+    "Last reported account balance for each SMS provider.",
+    labelnames=("provider",),
+    multiprocess_mode="livesum",
+)
+
+
 SMS_CELERY_TASK_RETRIES_TOTAL: Final[Counter] = Counter(
     "sms_celery_task_retries_total",
     "Total number of retries of the send_sms_with_failover task.",
