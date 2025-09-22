@@ -7,9 +7,11 @@ from .views import (
     UserListView,
     UserPasswordChangeView,
     UserUpdateView,
+    my_profile,
 )
 
 urlpatterns = [
+    path('profile/', my_profile, name='my_profile'),
     path('users/', UserListView.as_view(), name='user_list'),
     path('users/create/', UserCreateView.as_view(), name='user_create'),
     path('users/export-config/', ConfigExportView.as_view(), name='config_export'),

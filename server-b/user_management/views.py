@@ -1,12 +1,13 @@
 import json
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserChangeForm, UserCreationForm, SetPasswordForm
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.models import User
 from django.contrib.auth.views import PasswordChangeView
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -159,3 +160,16 @@ class UserPasswordChangeView(StaffRequiredMixin, PasswordChangeView):
             self.request, "Error changing user password. Please check the form."
         )
         return super().form_invalid(form)
+
+
+@login_required
+def my_profile(request):
+    user = request.user
+    profile = getattr(user, "profile", None)
+
+    context = {
+        "profile_api_key": getattr(profile, "api_key", ""),
+        "profile_daily_quota": getattr(profile, "daily_quota", 0),
+    }
+
+    return render(request, "user_management/my_profile.html", context)

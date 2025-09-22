@@ -5,15 +5,46 @@ from django.test import TestCase
 from django.urls import reverse
 
 
-class SettingsTests(TestCase):
+class ProfilePageTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username='user', password='pass')
+        self.user = get_user_model().objects.create_user(
+            username='user', email='user@example.com', password='pass'
+        )
+        self.user.profile.api_key = 'test-key'
+        self.user.profile.daily_quota = 25
+        self.user.profile.save()
 
-    def test_settings_page_has_timezone_select(self):
+    def test_profile_page_requires_login(self):
+        response = self.client.get(reverse('my_profile'))
+        login_url = resolve_url(settings.LOGIN_URL)
+        expected_redirect = f"{login_url}?next={reverse('my_profile')}"
+        self.assertRedirects(
+            response,
+            expected_redirect,
+            fetch_redirect_response=False,
+        )
+
+    def test_profile_page_displays_user_information(self):
         self.client.login(username='user', password='pass')
-        response = self.client.get(reverse('settings'))
+        response = self.client.get(reverse('my_profile'))
+        self.assertContains(response, 'My Profile')
+        self.assertContains(response, self.user.username)
+        self.assertContains(response, self.user.email)
+        self.assertContains(response, 'test-key')
+        self.assertContains(response, str(self.user.profile.daily_quota))
+
+    def test_profile_page_has_timezone_select(self):
+        self.client.login(username='user', password='pass')
+        response = self.client.get(reverse('my_profile'))
         self.assertContains(response, 'id="timezone-select"')
 
+    def test_profile_page_links_to_change_password(self):
+        self.client.login(username='user', password='pass')
+        response = self.client.get(reverse('my_profile'))
+        self.assertContains(response, reverse('account_change_password'))
+
+
+class CoreRoutingTests(TestCase):
     def test_root_redirects_to_message_list(self):
         response = self.client.get('/')
         self.assertRedirects(

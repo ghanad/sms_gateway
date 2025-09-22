@@ -11,5 +11,4 @@ urlpatterns = [
         ),
     ),
     path('docs/server-a/', views.server_a_user_guide, name='server_a_user_guide'),
-    path('settings/', views.settings, name='settings'),
 ]
