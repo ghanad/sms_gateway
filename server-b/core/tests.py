@@ -43,6 +43,13 @@ class ProfilePageTests(TestCase):
         response = self.client.get(reverse('my_profile'))
         self.assertContains(response, reverse('account_change_password'))
 
+    def test_profile_page_hides_admin_description(self):
+        self.user.profile.description = 'Hidden admin notes'
+        self.user.profile.save()
+        self.client.login(username='user', password='pass')
+        response = self.client.get(reverse('my_profile'))
+        self.assertNotContains(response, 'Hidden admin notes')
+
 
 class CoreRoutingTests(TestCase):
     def test_root_redirects_to_message_list(self):
