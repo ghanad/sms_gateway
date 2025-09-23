@@ -8,7 +8,7 @@ class ProfileInline(admin.StackedInline):
     can_delete = False
     verbose_name_plural = 'profile'
     fk_name = 'user'
-    fields = ('api_key', 'daily_quota',) # Added daily_quota to the inline form
+    fields = ('api_key', 'daily_quota', 'description')
 
 class CustomUserAdmin(UserAdmin):
     inlines = (ProfileInline,)

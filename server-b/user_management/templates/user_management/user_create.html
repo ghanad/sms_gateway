@@ -24,11 +24,7 @@
                         {% for field in form %}
                             <div>
                                 <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                                {% if field.widget_type == 'checkbox' %}
-                                    {{ field }}
-                                {% else %}
-                                    <input type="{{ field.widget_type }}" name="{{ field.name }}" id="{{ field.id_for_label }}" class="input" value="{{ field.value|default_if_none:'' }}">
-                                {% endif %}
+                                {{ field }}
                                 {% if field.help_text %}
                                     <p class="subtitle">{{ field.help_text }}</p>
                                 {% endif %}

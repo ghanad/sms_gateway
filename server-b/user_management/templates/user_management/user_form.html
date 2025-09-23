@@ -32,7 +32,7 @@
                                         <button type="button" class="btn btn-primary" id="generate-api-key">Generate</button>
                                     </div>
                                 {% else %}
-                                    <input type="{{ field.widget_type }}" name="{{ field.name }}" id="{{ field.id_for_label }}" class="input" value="{{ field.value|default_if_none:'' }}">
+                                    {{ field }}
                                 {% endif %}
                                 {% if field.help_text %}
                                     <p class="subtitle">{{ field.help_text }}</p>

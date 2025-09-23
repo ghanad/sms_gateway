@@ -23,12 +23,44 @@ class UserToggleActiveViewTests(TestCase):
         self.assertFalse(self.user.is_active)
 
 
+class UserCreateViewTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user("admin", "admin@example.com", "pass")
+        self.staff.is_staff = True
+        self.staff.save()
+        self.client.force_login(self.staff)
+
+    def test_staff_can_create_user_with_description(self):
+        response = self.client.post(
+            reverse("user_create"),
+            {
+                "username": "new_user",
+                "password1": "complex-pass-123",
+                "password2": "complex-pass-123",
+                "api_key": "new-api-key",
+                "daily_quota": "15",
+                "description": "User created for integration tests.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        created_user = User.objects.get(username="new_user")
+        self.assertEqual(
+            created_user.profile.description,
+            "User created for integration tests.",
+        )
+
+
 class UserUpdateViewTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user("admin", "admin@example.com", "pass")
         self.staff.is_staff = True
         self.staff.save()
         self.user = User.objects.create_user("user", "user@example.com", "pass")
+        self.user.profile.api_key = "existing-key"
+        self.user.profile.daily_quota = 20
+        self.user.profile.description = "Existing description"
+        self.user.profile.save()
         self.client.force_login(self.staff)
 
     def test_edit_user_displays_form_with_user_data(self):
@@ -37,6 +69,24 @@ class UserUpdateViewTests(TestCase):
         self.assertTemplateUsed(response, "user_management/user_form.html")
         form = response.context["form"]
         self.assertEqual(form.instance, self.user)
+
+    def test_staff_can_update_user_description(self):
+        response = self.client.post(
+            reverse("user_update", args=[self.user.pk]),
+            {
+                "username": self.user.username,
+                "email": self.user.email,
+                "first_name": "",
+                "last_name": "",
+                "api_key": "existing-key",
+                "daily_quota": "25",
+                "description": "Updated internal note.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.profile.description, "Updated internal note.")
 
 
 class ConfigExportViewTests(TestCase):
