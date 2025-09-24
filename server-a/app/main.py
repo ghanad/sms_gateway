@@ -47,16 +47,21 @@ redis_client: Optional[Redis] = None
 rabbitmq_connection: Optional[aio_pika.Connection] = None
 rabbitmq_channel: Optional[aio_pika.Channel] = None
 
-def start_config_state_consumer_if_enabled() -> None:
+def start_config_state_consumer_if_enabled() -> Optional[asyncio.Task]:
     """Start background consumer when remote config sync is enabled."""
 
     if settings.CONFIG_STATE_SYNC_ENABLED:
-        asyncio.create_task(consume_config_state())
-        logger.info("Configuration state consumer started.")
-    else:
-        logger.info(
-            "Remote configuration sync disabled. Using local configuration bootstrap only."
+        task = asyncio.create_task(
+            consume_config_state(),
+            name="config-state-consumer",
         )
+        logger.info("Configuration state consumer started.")
+        return task
+
+    logger.info(
+        "Remote configuration sync disabled. Using local configuration bootstrap only."
+    )
+    return None
 
 
 @asynccontextmanager
@@ -88,8 +93,14 @@ async def lifespan(app: FastAPI):
         logger.critical(f"Failed to connect to RabbitMQ on startup: {e}", exc_info=True)
         raise
 
+    background_tasks: List[asyncio.Task] = []
+
     # Start background tasks
-    asyncio.create_task(start_heartbeat_task())
+    heartbeat_task = asyncio.create_task(
+        start_heartbeat_task(),
+        name="heartbeat-task",
+    )
+    background_tasks.append(heartbeat_task)
     logger.info("Heartbeat task started.")
 
     # Warm caches from local file OR bootstrap from environment variables
@@ -110,17 +121,36 @@ async def lifespan(app: FastAPI):
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse initial config from environment: {e}. Waiting for state broadcast.")
 
-    start_config_state_consumer_if_enabled()
+    config_consumer_task = start_config_state_consumer_if_enabled()
+    if config_consumer_task:
+        background_tasks.append(config_consumer_task)
 
-    yield
+    try:
+        yield
+    finally:
+        logger.info("Shutting down Server A application...")
 
-    logger.info("Shutting down Server A application...")
-    if rabbitmq_connection:
-        await rabbitmq_connection.close()
-        logger.info("RabbitMQ connection closed.")
-    if redis_client:
-        await redis_client.close()
-        logger.info("Redis client closed.")
+        for task in background_tasks:
+            task.cancel()
+
+        for task in background_tasks:
+            task_name = task.get_name()
+            try:
+                await task
+            except asyncio.CancelledError:
+                logger.info("Background task '%s' cancelled.", task_name)
+            except Exception:
+                logger.exception(
+                    "Background task '%s' raised an error during shutdown.",
+                    task_name,
+                )
+
+        if rabbitmq_connection:
+            await rabbitmq_connection.close()
+            logger.info("RabbitMQ connection closed.")
+        if redis_client:
+            await redis_client.close()
+            logger.info("Redis client closed.")
 
 
 def custom_json_serializer(obj):
