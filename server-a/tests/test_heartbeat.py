@@ -1,11 +1,15 @@
-import pytest
+import hashlib
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 import aio_pika
 
-from app.heartbeat import send_heartbeat, HEARTBEAT_EXCHANGE_NAME, HEARTBEAT_QUEUE_NAME
+import app.heartbeat as heartbeat
+from app import cache
+from app.heartbeat import HEARTBEAT_EXCHANGE_NAME, HEARTBEAT_QUEUE_NAME, send_heartbeat
 from app.config import Settings
 
 
@@ -41,7 +45,8 @@ async def test_send_heartbeat_publishes_payload_and_closes_connection():
     with patch('app.heartbeat.aio_pika.connect_robust', return_value=mock_connection), \
          patch('app.heartbeat.settings', mock_settings), \
          patch('app.heartbeat.Message') as mock_message, \
-         patch('app.heartbeat.datetime') as mock_datetime:
+         patch('app.heartbeat.datetime') as mock_datetime, \
+         patch('app.heartbeat.compute_config_cache_fingerprint', return_value='abc123'):
         mock_datetime.utcnow.return_value = fixed_time
         await send_heartbeat()
 
@@ -57,6 +62,7 @@ async def test_send_heartbeat_publishes_payload_and_closes_connection():
     assert payload == {
         "service": mock_settings.app_name,
         "timestamp": fixed_time.isoformat(),
+        "config_cache_fingerprint": "abc123",
     }
     assert kwargs["content_type"] == "application/json"
     assert kwargs["delivery_mode"] == aio_pika.DeliveryMode.PERSISTENT
@@ -65,3 +71,23 @@ async def test_send_heartbeat_publishes_payload_and_closes_connection():
         mock_message.return_value, routing_key=HEARTBEAT_QUEUE_NAME
     )
     mock_connection.close.assert_awaited_once()
+
+
+def test_compute_config_cache_fingerprint_returns_sha256(tmp_path, monkeypatch):
+    cache_file = tmp_path / "config_cache.json"
+    content = b"{\"users\": {}}"
+    cache_file.write_bytes(content)
+    monkeypatch.setattr(cache, "CONFIG_CACHE_PATH", cache_file, raising=False)
+
+    fingerprint = heartbeat.compute_config_cache_fingerprint()
+
+    assert fingerprint == hashlib.sha256(content).hexdigest()
+
+
+def test_compute_config_cache_fingerprint_handles_missing_file(tmp_path, monkeypatch):
+    cache_file = tmp_path / "config_cache.json"
+    if cache_file.exists():
+        cache_file.unlink()
+    monkeypatch.setattr(cache, "CONFIG_CACHE_PATH", cache_file, raising=False)
+
+    assert heartbeat.compute_config_cache_fingerprint() is None
