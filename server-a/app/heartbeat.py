@@ -21,17 +21,21 @@ HEARTBEAT_QUEUE_NAME = settings.heartbeat_queue_name
 def compute_config_cache_fingerprint() -> Optional[str]:
     """Return the SHA256 fingerprint of the config cache file if available."""
     cache_path = cache.CONFIG_CACHE_PATH
-    hasher = hashlib.sha256()
     try:
-        with cache_path.open("rb") as cache_file:
-            for chunk in iter(lambda: cache_file.read(8192), b""):
-                hasher.update(chunk)
-        return hasher.hexdigest()
+        with cache_path.open("r", encoding="utf-8") as cache_file:
+            payload = json.load(cache_file)
     except FileNotFoundError:
         logger.debug("Config cache file missing when computing fingerprint.")
+        return None
+    except json.JSONDecodeError as exc:
+        logger.warning("Unable to parse config cache for fingerprint: %s", exc)
+        return None
     except OSError as exc:
         logger.warning("Unable to read config cache for fingerprint: %s", exc)
-    return None
+        return None
+
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def _refresh_heartbeat_names() -> None:

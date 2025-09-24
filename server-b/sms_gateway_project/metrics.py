@@ -87,6 +87,16 @@ SMS_DLQ_MESSAGES_TOTAL: Final[Counter] = Counter(
 )
 
 
+EXPECTED_CONFIG_FINGERPRINT_SERVICE_LABEL_VALUE: Final[str] = "sms-gateway-server-b"
+
+EXPECTED_CONFIG_FINGERPRINT: Final[Gauge] = Gauge(
+    "sms_gateway_config_fingerprint",
+    "SHA256 fingerprint of the expected Server A configuration.",
+    labelnames=("service", "fingerprint"),
+    multiprocess_mode="max",
+)
+
+
 # ---------------------------------------------------------------------------
 # HTTP endpoint
 # ---------------------------------------------------------------------------
