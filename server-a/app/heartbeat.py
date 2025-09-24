@@ -85,21 +85,32 @@ async def send_heartbeat():
             await connection.close()
 
 async def start_heartbeat_task():
-    """
-    Starts a background task to send heartbeats periodically.
-    Includes retry logic with backoff.
-    """
+    """Run the periodic heartbeat sender until cancelled."""
+
+    async def _cancellable_sleep(delay: float) -> None:
+        try:
+            await asyncio.sleep(delay)
+        except asyncio.CancelledError:
+            raise
+
     logger.info(
         "Starting heartbeat task with interval: %s seconds.",
         settings.heartbeat_interval_seconds,
     )
-    while True:
-        try:
-            await send_heartbeat()
-        except Exception as e:
-            logger.error(
-                "Heartbeat task encountered an error: %s. Retrying after backoff.",
-                e,
-            )
-            await asyncio.sleep(min(settings.heartbeat_interval_seconds * 2, 300))
-        await asyncio.sleep(settings.heartbeat_interval_seconds)
+
+    try:
+        while True:
+            try:
+                await send_heartbeat()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(
+                    "Heartbeat task encountered an error: %s. Retrying after backoff.",
+                    e,
+                )
+                await _cancellable_sleep(min(settings.heartbeat_interval_seconds * 2, 300))
+            await _cancellable_sleep(settings.heartbeat_interval_seconds)
+    except asyncio.CancelledError:
+        logger.info("Heartbeat task cancellation requested; exiting background loop.")
+        raise

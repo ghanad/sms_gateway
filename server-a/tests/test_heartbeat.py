@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 from datetime import datetime
@@ -91,3 +92,28 @@ def test_compute_config_cache_fingerprint_handles_missing_file(tmp_path, monkeyp
     monkeypatch.setattr(cache, "CONFIG_CACHE_PATH", cache_file, raising=False)
 
     assert heartbeat.compute_config_cache_fingerprint() is None
+
+
+@pytest.mark.asyncio
+async def test_start_heartbeat_task_respects_cancellation(monkeypatch):
+    started = asyncio.Event()
+
+    async def fake_send():
+        started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(heartbeat, "send_heartbeat", fake_send)
+    monkeypatch.setattr(
+        heartbeat.settings,
+        "heartbeat_interval_seconds",
+        0.1,
+        raising=False,
+    )
+
+    task = asyncio.create_task(heartbeat.start_heartbeat_task())
+
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
