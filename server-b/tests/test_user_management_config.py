@@ -152,22 +152,32 @@ def test_update_expected_config_fingerprint_metric(monkeypatch):
         lambda: sample_payload,
     )
 
-    module.EXPECTED_CONFIG_FINGERPRINT.info(
-        {
-            "fingerprint": "seed",
-            "service": module.EXPECTED_CONFIG_FINGERPRINT_SERVICE_LABEL_VALUE,
-        }
-    )
+    module.EXPECTED_CONFIG_FINGERPRINT.clear()
+    module._last_fingerprint = "seed"
+    module.EXPECTED_CONFIG_FINGERPRINT.labels(
+        service=module.EXPECTED_CONFIG_FINGERPRINT_SERVICE_LABEL_VALUE,
+        fingerprint=module._last_fingerprint,
+    ).set(1)
 
     module.update_expected_config_fingerprint_metric.run()
 
-    samples = list(module.EXPECTED_CONFIG_FINGERPRINT.collect()[0].samples)
-    assert len(samples) == 1
-
     serialized = json.dumps(sample_payload, sort_keys=True, separators=(",", ":"))
     expected_hash = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-    assert samples[0].name == "sms_gateway_config_fingerprint_info"
-    assert samples[0].labels == {
-        "fingerprint": expected_hash,
-        "service": module.EXPECTED_CONFIG_FINGERPRINT_SERVICE_LABEL_VALUE,
-    }
+
+    metric_families = module.EXPECTED_CONFIG_FINGERPRINT.collect()
+    samples = [
+        sample
+        for family in metric_families
+        for sample in family.samples
+        if "fingerprint" in sample.labels
+    ]
+
+    assert module._last_fingerprint == expected_hash
+
+    labels_to_values = {sample.labels["fingerprint"]: sample.value for sample in samples}
+    assert labels_to_values["seed"] == 0.0
+    assert labels_to_values[expected_hash] == 1.0
+
+    for sample in samples:
+        assert sample.labels["service"] == module.EXPECTED_CONFIG_FINGERPRINT_SERVICE_LABEL_VALUE
+

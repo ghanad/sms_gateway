@@ -74,21 +74,49 @@ async def test_send_heartbeat_publishes_payload_and_closes_connection():
     mock_connection.close.assert_awaited_once()
 
 
-def test_compute_config_cache_fingerprint_returns_sha256(tmp_path, monkeypatch):
+def test_compute_config_cache_fingerprint_hashes_canonical_json(tmp_path, monkeypatch):
     cache_file = tmp_path / "config_cache.json"
-    content = b"{\"users\": {}}"
-    cache_file.write_bytes(content)
+    raw_content = """{
+    "users": {
+        "api-1": {
+            "user_id": 1,
+            "username": "Alice",
+            "daily_quota": 5
+        }
+    },
+    "providers": {
+        "beta": {
+            "is_active": true,
+            "aliases": ["b"]
+        },
+        "alpha": {
+            "is_active": false
+        }
+    }
+}
+"""
+    cache_file.write_text(raw_content)
     monkeypatch.setattr(cache, "CONFIG_CACHE_PATH", cache_file, raising=False)
 
     fingerprint = heartbeat.compute_config_cache_fingerprint()
 
-    assert fingerprint == hashlib.sha256(content).hexdigest()
+    payload = json.loads(raw_content)
+    expected_serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    assert fingerprint == hashlib.sha256(expected_serialized.encode("utf-8")).hexdigest()
 
 
 def test_compute_config_cache_fingerprint_handles_missing_file(tmp_path, monkeypatch):
     cache_file = tmp_path / "config_cache.json"
     if cache_file.exists():
         cache_file.unlink()
+    monkeypatch.setattr(cache, "CONFIG_CACHE_PATH", cache_file, raising=False)
+
+    assert heartbeat.compute_config_cache_fingerprint() is None
+
+
+def test_compute_config_cache_fingerprint_handles_invalid_json(tmp_path, monkeypatch):
+    cache_file = tmp_path / "config_cache.json"
+    cache_file.write_text("{invalid json}")
     monkeypatch.setattr(cache, "CONFIG_CACHE_PATH", cache_file, raising=False)
 
     assert heartbeat.compute_config_cache_fingerprint() is None
