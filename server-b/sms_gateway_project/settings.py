@@ -182,7 +182,10 @@ CELERY_BROKER_URL = os.environ.get(
 
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'rpc://')
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
-CELERY_IMPORTS = ('core.state_broadcaster',)
+CELERY_IMPORTS = (
+    'core.state_broadcaster',
+    'user_management.tasks',
+)
 CELERY_BEAT_SCHEDULE = {
     'dispatch-pending-messages': {
         'task': 'messaging.tasks.dispatch_pending_messages',
@@ -191,6 +194,10 @@ CELERY_BEAT_SCHEDULE = {
     'update-provider-balance-metrics': {
         'task': 'providers.tasks.update_provider_balance_metrics',
         'schedule': timedelta(minutes=15),
+    },
+    'update-expected-config-fingerprint': {
+        'task': 'user_management.tasks.update_expected_config_fingerprint_metric',
+        'schedule': timedelta(seconds=60),
     },
 
 }

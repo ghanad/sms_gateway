@@ -13,9 +13,8 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView, View
 
-from providers.models import SmsProvider
-
 from .forms import CustomUserChangeForm, CustomUserCreationForm
+from .utils import generate_server_a_config_data
 
 
 class StaffRequiredMixin(UserPassesTestMixin):
@@ -99,39 +98,7 @@ class ConfigExportView(StaffRequiredMixin, View):
     filename = "config_cache.json"
 
     def get(self, request, *args, **kwargs):
-        users = {}
-        for user in User.objects.select_related("profile").all():
-            profile = getattr(user, "profile", None)
-            api_key = getattr(profile, "api_key", None)
-            if not api_key:
-                continue
-            users[str(api_key)] = {
-                "user_id": user.id,
-                "username": user.username,
-                "is_active": user.is_active,
-                "daily_quota": getattr(profile, "daily_quota", 0) or 0,
-            }
-
-        providers = {}
-        for provider in SmsProvider.objects.all():
-            aliases = list(getattr(provider, "aliases", []) or [])
-            slug = getattr(provider, "slug", "")
-            if slug and slug not in aliases:
-                aliases.append(slug)
-
-            provider_payload = {
-                "is_active": provider.is_active,
-                "is_operational": getattr(provider, "is_operational", True),
-                "aliases": aliases,
-            }
-
-            note = getattr(provider, "note", None)
-            if note:
-                provider_payload["note"] = note
-
-            providers[provider.name] = provider_payload
-
-        payload = {"users": users, "providers": providers}
+        payload = generate_server_a_config_data()
         response = HttpResponse(
             json.dumps(payload, indent=2, sort_keys=True),
             content_type="application/json",

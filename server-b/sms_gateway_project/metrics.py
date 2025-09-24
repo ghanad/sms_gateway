@@ -12,6 +12,7 @@ from prometheus_client import (
     Counter,
     Gauge,
     Histogram,
+    Info,
     generate_latest,
     multiprocess,
 )
@@ -84,6 +85,14 @@ SMS_CELERY_TASK_RETRIES_TOTAL: Final[Counter] = Counter(
 SMS_DLQ_MESSAGES_TOTAL: Final[Counter] = Counter(
     "sms_dlq_messages_total",
     "Total number of SMS messages published to the DLQ.",
+)
+
+
+EXPECTED_CONFIG_FINGERPRINT_SERVICE_LABEL_VALUE: Final[str] = "sms-gateway-server-a"
+
+EXPECTED_CONFIG_FINGERPRINT: Final[Info] = Info(
+    "sms_gateway_config_fingerprint",
+    "SHA256 fingerprint of the expected Server A configuration.",
 )
 
 
