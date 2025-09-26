@@ -3,6 +3,7 @@
 import logging
 import asyncio
 import json
+import secrets
 from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import List, Optional
@@ -11,12 +12,13 @@ import dataclasses
 import os
 
 import aio_pika
-from fastapi import FastAPI, Depends, HTTPException, status, Request, Response, Body
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Body
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 from prometheus_client import Summary
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from app.config import get_settings
 from app.logging import setup_logging
@@ -171,13 +173,54 @@ app.json_encoder = custom_json_serializer
 
 app.middleware("http")(idempotency_middleware)
 
+security = HTTPBasic()
+
+
+def require_metrics_auth(credentials: HTTPBasicCredentials = Depends(security)) -> None:
+    """Ensure that requests to the metrics endpoint provide valid Basic Auth credentials."""
+    if not settings.metrics_username or not settings.metrics_password:
+        logger.error("Metrics authentication credentials are not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_code": "INTERNAL_ERROR",
+                "message": "Metrics authentication is not configured.",
+            },
+        )
+
+    username_valid = secrets.compare_digest(credentials.username, settings.metrics_username)
+    password_valid = secrets.compare_digest(credentials.password, settings.metrics_password)
+
+    if not (username_valid and password_valid):
+        logger.warning("Metrics authentication failed for provided credentials.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error_code": "UNAUTHORIZED",
+                "message": "Invalid authentication credentials.",
+            },
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     tracking_id = getattr(request.state, "tracking_id", None)
+    if isinstance(exc.detail, dict):
+        detail_payload = exc.detail
+    else:
+        fallback_error_code = (
+            "UNAUTHORIZED"
+            if exc.status_code == status.HTTP_401_UNAUTHORIZED
+            else "INTERNAL_ERROR"
+        )
+        detail_payload = {
+            "error_code": fallback_error_code,
+            "message": str(exc.detail) if exc.detail else "An unexpected error occurred.",
+        }
     error_response = ErrorResponse(
-        error_code=exc.detail.get("error_code", "INTERNAL_ERROR"),
-        message=exc.detail.get("message", "An unexpected error occurred."),
-        details=exc.detail.get("details"),
+        error_code=detail_payload.get("error_code", "INTERNAL_ERROR"),
+        message=detail_payload.get("message", "An unexpected error occurred."),
+        details=detail_payload.get("details"),
         tracking_id=tracking_id
     )
     logger.error(
@@ -185,12 +228,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         extra={
             "tracking_id": tracking_id,
             "client_api_key": getattr(request.state, 'client', None).api_key if hasattr(request.state, 'client') and request.state.client else None,
-            "error_details": exc.detail
+            "error_details": detail_payload
         }
     )
     content = json.loads(json.dumps(dataclasses.asdict(error_response), default=custom_json_serializer))
     content = {k: v for k, v in content.items() if v is not None}
-    return JSONResponse(status_code=exc.status_code, content=content)
+    return JSONResponse(status_code=exc.status_code, content=content, headers=exc.headers)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -295,5 +338,5 @@ async def readyz():
         )
 
 @app.get("/metrics", status_code=status.HTTP_200_OK)
-async def get_metrics():
-    return metrics_content
+async def get_metrics(_: None = Depends(require_metrics_auth)):
+    return metrics_content()

@@ -88,8 +88,12 @@ def initialize_provider_metrics():
     logger.info("Provider metrics initialized.")
 
 def metrics_content() -> Response:
-    """Returns Prometheus metrics in a plain text format."""
-    return Response(content=generate_latest(APP_REGISTRY).decode('utf-8'), media_type="text/plain")
+    """Returns Prometheus metrics in the OpenMetrics text exposition format."""
+    payload = generate_latest(APP_REGISTRY)
+    return Response(
+        content=payload,
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
 
 # Initialize metrics on startup
 initialize_provider_metrics()
