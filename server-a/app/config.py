@@ -44,6 +44,8 @@ class Settings:
         self.PROVIDERS_CONFIG: str = os.getenv("PROVIDERS_CONFIG", "{}")
         self.heartbeat_exchange_name: str = os.getenv("RABBITMQ_HEARTBEAT_EXCHANGE", "sms_gateway_heartbeat_exchange")
         self.heartbeat_queue_name: str = os.getenv("RABBITMQ_HEARTBEAT_QUEUE", "sms_heartbeat_queue")
+        self.metrics_username: str = os.getenv("METRICS_USERNAME", "")
+        self.metrics_password: str = os.getenv("METRICS_PASSWORD", "")
 
         for key, value in kwargs.items():
             setattr(self, key, value)
