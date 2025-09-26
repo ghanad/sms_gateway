@@ -10,6 +10,8 @@ The system separates the high-throughput API ingress from the complex, stateful 
 
 The system consists of two primary services, **Server A** and **Server B**, which operate independently and communicate through **RabbitMQ**. This design pattern isolates responsibilities, enhances scalability, and improves resilience.
 
+**Important Note**: Server B does not have direct access to Server A. Communication is unidirectional from Server A to Server B via RabbitMQ.
+
 
 *(A conceptual diagram representing the flow: Client -> Server A -> RabbitMQ -> Server B -> SMS Provider)*
 
