@@ -94,8 +94,13 @@
       display:inline-flex; align-items:center; padding:4px 8px; font-size:12px; border-radius:999px;
       border:1px solid;
     }
+    .pill--pending{ background:#f1f5f9; color:#475569; border-color:#e2e8f0; }
+    .pill--processing{ background:#dbeafe; color:#1d4ed8; border-color:#bfdbfe; }
+    .pill--retry{ background:#ffedd5; color:#c2410c; border-color:#fed7aa; }
+    .pill--sent{ background:#dcfce7; color:#15803d; border-color:#bbf7d0; }
+    .pill--delivered{ background:#d1fae5; color:#065f46; border-color:#6ee7b7; }
     .pill--on{ background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
-    .pill--off{ background:#fff1f2; color:#be123c; border-color:#fecdd3; }
+    .pill--off{ background:#fee2e2; color:#b91c1c; border-color:#fecaca; }
 
     /* Actions */
     .actions{ display:inline-flex; gap:8px; }

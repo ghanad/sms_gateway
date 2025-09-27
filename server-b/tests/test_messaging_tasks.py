@@ -2,6 +2,7 @@ import datetime
 import importlib
 import os
 import sys
+import tempfile
 from types import SimpleNamespace
 
 import django
@@ -14,6 +15,8 @@ from prometheus_client import REGISTRY
 TEST_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if TEST_ROOT not in sys.path:
     sys.path.insert(0, TEST_ROOT)
+
+os.environ.setdefault("PROMETHEUS_MULTIPROC_DIR", tempfile.mkdtemp())
 
 
 METRIC_NAMES = [
@@ -73,6 +76,175 @@ def import_messaging_tasks(monkeypatch):
                 pass
         del sys.modules[module_name]
     return importlib.import_module(module_name)
+
+
+def test_update_delivery_statuses_updates_recent_messages(monkeypatch):
+    module = import_messaging_tasks(monkeypatch)
+
+    module.SMS_MESSAGE_FINAL_STATUS_TOTAL.clear()
+    reset_histogram(module.SMS_PROCESSING_DURATION_SECONDS)
+
+    fake_now = datetime.datetime(2024, 1, 2, 12, 0, tzinfo=datetime.timezone.utc)
+    monkeypatch.setattr(module.timezone, "now", lambda: fake_now)
+
+    provider = SimpleNamespace(pk=1)
+
+    class DummyMessage:
+        def __init__(self, pk, provider_message_id, updated_at, created_at, error_message=""):
+            self.pk = pk
+            self.provider = provider
+            self.provider_message_id = provider_message_id
+            self.updated_at = updated_at
+            self.created_at = created_at
+            self.status = module.MessageStatus.SENT_TO_PROVIDER
+            self.error_message = error_message
+            self.delivered_at = None
+            self.saved = []
+
+        def save(self, update_fields=None):
+            self.saved.append(update_fields)
+
+    recent_created = fake_now - datetime.timedelta(hours=5)
+    delivered_message = DummyMessage(
+        pk=101,
+        provider_message_id="101",
+        updated_at=fake_now - datetime.timedelta(hours=1),
+        created_at=recent_created,
+        error_message="will-clear",
+    )
+    failed_message = DummyMessage(
+        pk=202,
+        provider_message_id="202",
+        updated_at=fake_now - datetime.timedelta(hours=2),
+        created_at=fake_now - datetime.timedelta(hours=6),
+    )
+    stale_message = DummyMessage(
+        pk=303,
+        provider_message_id="303",
+        updated_at=fake_now - datetime.timedelta(hours=90),
+        created_at=fake_now - datetime.timedelta(hours=95),
+    )
+
+    class DummyQuerySet:
+        def __init__(self, data):
+            self._data = list(data)
+
+        def select_related(self, *args, **kwargs):
+            return self
+
+        def filter(self, **kwargs):
+            data = self._data
+            for key, value in kwargs.items():
+                if key == "status":
+                    data = [item for item in data if item.status == value]
+                elif key == "updated_at__gte":
+                    data = [item for item in data if item.updated_at >= value]
+                elif key == "provider__isnull":
+                    if value:
+                        data = [item for item in data if item.provider is None]
+                    else:
+                        data = [item for item in data if item.provider is not None]
+                else:
+                    raise AssertionError(f"Unhandled filter {key}")
+            return DummyQuerySet(data)
+
+        def exclude(self, **kwargs):
+            data = self._data
+            for key, value in kwargs.items():
+                if key == "provider_message_id__isnull" and value:
+                    data = [item for item in data if item.provider_message_id is not None]
+                elif key == "provider_message_id__exact":
+                    data = [
+                        item
+                        for item in data
+                        if getattr(item, "provider_message_id", None) != value
+                    ]
+                else:
+                    raise AssertionError(f"Unhandled exclude {key}")
+            return DummyQuerySet(data)
+
+        def __iter__(self):
+            return iter(self._data)
+
+    class DummyManager:
+        def __init__(self, data):
+            self._data = data
+
+        def select_related(self, *args, **kwargs):
+            return DummyQuerySet(self._data)
+
+    captured_ids = []
+
+    class DummyAdapter:
+        supports_status_check = True
+
+        def __init__(self, provider):
+            self.provider = provider
+
+        def check_status(self, message_ids):
+            captured_ids.append(message_ids)
+            return {
+                "101": {
+                    "status": module.MessageStatus.DELIVERED,
+                    "delivered_at": "2024-01-02 10:30:00",
+                    "provider_status": 1,
+                },
+                "202": {
+                    "status": module.MessageStatus.FAILED,
+                    "provider_status": 2,
+                },
+            }
+
+    set_task_globals(
+        module.update_delivery_statuses,
+        monkeypatch,
+        Message=SimpleNamespace(
+            objects=DummyManager([delivered_message, failed_message, stale_message])
+        ),
+        get_provider_adapter=lambda prov: DummyAdapter(prov),
+    )
+
+    module.update_delivery_statuses.run()
+
+    assert captured_ids == [["101", "202"]]
+
+    assert delivered_message.status == module.MessageStatus.DELIVERED
+    assert delivered_message.error_message == ""
+    assert delivered_message.delivered_at is not None
+    assert module.timezone.is_aware(delivered_message.delivered_at)
+    assert delivered_message.saved[0] == ["status", "delivered_at", "error_message"]
+
+    assert failed_message.status == module.MessageStatus.FAILED
+    assert failed_message.delivered_at is None
+    assert "provider status 2" in failed_message.error_message
+    assert failed_message.saved
+    saved_fields = failed_message.saved[0]
+    assert "status" in saved_fields
+    assert "error_message" in saved_fields
+
+    assert stale_message.status == module.MessageStatus.SENT_TO_PROVIDER
+    assert stale_message.saved == []
+
+    delivered_total = (
+        module.SMS_MESSAGE_FINAL_STATUS_TOTAL.labels(
+            status=module.MessageStatus.DELIVERED
+        )._value.get()
+    )
+    failed_total = (
+        module.SMS_MESSAGE_FINAL_STATUS_TOTAL.labels(
+            status=module.MessageStatus.FAILED
+        )._value.get()
+    )
+    assert delivered_total == 1
+    assert failed_total == 1
+
+    duration_samples = module.SMS_PROCESSING_DURATION_SECONDS.collect()[0].samples
+    duration_count = next(
+        sample.value
+        for sample in duration_samples
+        if sample.name == "sms_processing_duration_seconds_count"
+    )
+    assert duration_count == pytest.approx(2.0)
 
 
 def test_publish_to_dlq_uses_configured_virtual_host(monkeypatch):

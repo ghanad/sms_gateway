@@ -201,6 +201,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'user_management.tasks.update_expected_config_fingerprint_metric',
         'schedule': timedelta(seconds=60),
     },
+    'update-delivery-statuses': {
+        'task': 'messaging.tasks.update_delivery_statuses',
+        'schedule': timedelta(minutes=5),
+    },
 
 }
 

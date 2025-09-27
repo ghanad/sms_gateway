@@ -75,13 +75,33 @@
                             <td><strong><a href="{% url 'messaging:message_detail' message.tracking_id %}">{{ message.recipient }}</a></strong></td>
                             <td>{{ message.text|truncatechars:50 }}</td>
                             <td>
-                                <span class="pill pill--on">{{ message.get_status_display }}</span>
-                                {% if message.status == 'AWAITING_RETRY' and message.error_message %}
-                                    <div class="error">{{ message.error_message }}</div>
-                                {% endif %}
+                                {% with status=message.status %}
+                                    {% if status == 'PENDING' %}
+                                        {% with 'pill--pending' as status_class %}
+                                    {% elif status == 'PROCESSING' %}
+                                        {% with 'pill--processing' as status_class %}
+                                    {% elif status == 'AWAITING_RETRY' %}
+                                        {% with 'pill--retry' as status_class %}
+                                    {% elif status == 'SENT' %}
+                                        {% with 'pill--sent' as status_class %}
+                                    {% elif status == 'DELIVERED' %}
+                                        {% with 'pill--delivered' as status_class %}
+                                    {% elif status == 'FAILED' or status == 'REJECTED' %}
+                                        {% with 'pill--off' as status_class %}
+                                    {% else %}
+                                        {% with 'pill--on' as status_class %}
+                                    {% endif %}
+                                        <span class="pill {{ status_class }}">{{ message.get_status_display }}</span>
+                                        {% if status == 'AWAITING_RETRY' and message.error_message %}
+                                            <div class="error">{{ message.error_message }}</div>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% endwith %}
                             </td>
                             <td>{{ message.provider.name }}</td>
-                            <td class="utc-time" data-utc="{{ message.sent_at|date:'c' }}"></td>
+                            {% with timestamp=message.delivered_at|default:message.sent_at|default:message.created_at %}
+                                <td class="utc-time" data-utc="{{ timestamp|date:'c' }}"></td>
+                            {% endwith %}
                         </tr>
                         {% empty %}
                         <tr>

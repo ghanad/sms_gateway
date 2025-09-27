@@ -79,6 +79,11 @@ class Message(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, help_text="Timestamp when the message was received from the queue")
     updated_at = models.DateTimeField(auto_now=True, help_text="Timestamp of the last status update")
     sent_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp of successful sending to the provider")
+    delivered_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the provider confirmed final delivery",
+    )
 
     def __str__(self):
         return f"To: {self.recipient} via {self.provider.name if self.provider else 'N/A'} [{self.status}]"
