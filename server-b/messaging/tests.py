@@ -55,6 +55,34 @@ class MessageModelTests(TestCase):
         self.assertEqual(msg.status, MessageStatus.PENDING)
         self.assertEqual(str(msg), f"To: {msg.recipient} via N/A [{msg.status}]")
 
+    def test_status_pill_class_mapping(self):
+        msg = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="12345",
+            text="hello",
+            provider=self.provider,
+        )
+
+        expected_classes = {
+            MessageStatus.PENDING: "pill--pending",
+            MessageStatus.PROCESSING: "pill--processing",
+            MessageStatus.AWAITING_RETRY: "pill--retry",
+            MessageStatus.SENT_TO_PROVIDER: "pill--sent",
+            MessageStatus.DELIVERED: "pill--delivered",
+            MessageStatus.FAILED: "pill--off",
+            MessageStatus.REJECTED: "pill--off",
+        }
+
+        for status, css_class in expected_classes.items():
+            msg.status = status
+            msg.save(update_fields=["status"])
+            self.assertEqual(msg.status_pill_class, css_class)
+
+        msg.status = "UNMAPPED"
+        msg.save(update_fields=["status"])
+        self.assertEqual(msg.status_pill_class, "pill--on")
+
 
 class UserMessageListViewTests(TestCase):
     def setUp(self):
