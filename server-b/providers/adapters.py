@@ -1,5 +1,8 @@
 # server-b/providers/adapters.py
+from datetime import datetime
+
 import requests
+
 from .models import SmsProvider, ProviderType
 
 class BaseSmsProvider:
@@ -168,9 +171,20 @@ class MagfaSmsProvider(BaseSmsProvider):
             mapped_status = status_map.get(status_code)
             if mid is None or mapped_status is None:
                 continue
+
+            delivered_at = entry.get('date')
+            if isinstance(delivered_at, str):
+                try:
+                    delivered_at = datetime.strptime(delivered_at, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    try:
+                        delivered_at = datetime.fromisoformat(delivered_at)
+                    except ValueError:
+                        delivered_at = None
+
             results[str(mid)] = {
                 'status': mapped_status,
-                'delivered_at': entry.get('date'),
+                'delivered_at': delivered_at,
                 'provider_status': status_code,
             }
 

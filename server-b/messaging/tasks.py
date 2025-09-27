@@ -3,7 +3,7 @@ import logging
 import time
 import uuid
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as datetime_timezone
 
 import pika
 from celery import shared_task
@@ -94,10 +94,14 @@ def _parse_provider_timestamp(value):
 
     if timezone.is_naive(dt):
         try:
-            return timezone.make_aware(dt, timezone.get_current_timezone())
+            return timezone.make_aware(dt, datetime_timezone.utc)
         except Exception:  # pragma: no cover - defensive guard
             return None
-    return dt
+
+    try:
+        return dt.astimezone(datetime_timezone.utc)
+    except Exception:  # pragma: no cover - defensive guard
+        return None
 
 
 @shared_task
