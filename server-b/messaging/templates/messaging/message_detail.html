@@ -45,26 +45,6 @@
                     <dd class="text-base font-medium text-slate-900">{{ object.get_status_display }}</dd>
                 </div>
                 <div class="flex flex-col gap-1">
-                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Sent At</dt>
-                    <dd class="text-base font-medium text-slate-900">
-                        {% if object.sent_at %}
-                            {{ object.sent_at|date:"Y-m-d H:i A" }}
-                        {% else %}
-                            <span class="text-slate-400">Pending</span>
-                        {% endif %}
-                    </dd>
-                </div>
-                <div class="flex flex-col gap-1">
-                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Delivered At</dt>
-                    <dd class="text-base font-medium text-slate-900">
-                        {% if object.delivered_at %}
-                            {{ object.delivered_at|date:"Y-m-d H:i A" }}
-                        {% else %}
-                            <span class="text-slate-400">Pending</span>
-                        {% endif %}
-                    </dd>
-                </div>
-                <div class="flex flex-col gap-1">
                     <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Message Content</dt>
                     <dd class="text-base font-medium text-slate-900 whitespace-pre-line">{{ object.text }}</dd>
                 </div>
@@ -83,51 +63,101 @@
                 <p class="text-sm text-slate-500">Track the lifecycle of this message.</p>
             </div>
             <ol class="relative flex flex-col gap-6">
-                {% if object.sent_at %}
-                <li class="relative flex gap-4">
-                    <div class="flex h-full flex-col items-center">
-                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
-                                <path d="M22 2L11 13" />
-                                <path d="M22 2L15 22L11 13L2 9L22 2Z" />
-                            </svg>
-                        </span>
-                        {% if object.delivered_at %}
-                        <span aria-hidden="true" class="mt-2 h-full w-px bg-slate-200"></span>
-                        {% endif %}
-                    </div>
-                    <div class="flex flex-col gap-1">
-                        <p class="text-sm font-semibold text-slate-900">Message Sent</p>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">{{ object.sent_at|date:"Y-m-d H:i A" }}</p>
-                        <p class="text-sm text-slate-500">The message was successfully handed off to the provider.</p>
-                    </div>
-                </li>
-                {% endif %}
+                {% with request_timestamp=object.initial_envelope.created_at queued_timestamp=object.created_at sent_timestamp=object.sent_at delivered_timestamp=object.delivered_at %}
+                    {% if request_timestamp %}
+                    <li class="relative flex gap-4">
+                        <div class="flex h-full flex-col items-center">
+                            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                                    <path d="M22 12v5a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-5" />
+                                    <path d="m16 6-4 4-4-4" />
+                                    <path d="M12 10V2" />
+                                </svg>
+                            </span>
+                            {% if queued_timestamp or sent_timestamp or delivered_timestamp %}
+                            <span aria-hidden="true" class="mt-2 h-full w-px bg-slate-200"></span>
+                            {% endif %}
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <p class="text-sm font-semibold text-slate-900">Request Received</p>
+                            {% with formatted=request_timestamp|date:"Y-m-d H:i A" %}
+                                <p class="text-xs uppercase tracking-wide text-slate-500">{% firstof formatted request_timestamp %}</p>
+                            {% endwith %}
+                            <p class="text-sm text-slate-500">Gateway accepted the inbound request.</p>
+                        </div>
+                    </li>
+                    {% endif %}
 
-                {% if object.delivered_at %}
-                <li class="relative flex gap-4">
-                    <div class="flex h-full flex-col items-center">
-                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
-                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-                                <path d="M2 11l10 3l10-3" />
-                                <path d="M6 3h12" />
-                            </svg>
-                        </span>
-                    </div>
-                    <div class="flex flex-col gap-1">
-                        <p class="text-sm font-semibold text-slate-900">Delivered to Device</p>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">{{ object.delivered_at|date:"Y-m-d H:i A" }}</p>
-                        <p class="text-sm text-slate-500">Confirmation that the device acknowledged delivery.</p>
-                    </div>
-                </li>
-                {% endif %}
+                    {% if queued_timestamp %}
+                    <li class="relative flex gap-4">
+                        <div class="flex h-full flex-col items-center">
+                            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                                    <rect x="3" y="4" width="18" height="6" rx="2" />
+                                    <rect x="3" y="14" width="18" height="6" rx="2" />
+                                    <path d="M3 14h18" />
+                                </svg>
+                            </span>
+                            {% if sent_timestamp or delivered_timestamp %}
+                            <span aria-hidden="true" class="mt-2 h-full w-px bg-slate-200"></span>
+                            {% endif %}
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <p class="text-sm font-semibold text-slate-900">Queued for Processing</p>
+                            {% with formatted=queued_timestamp|date:"Y-m-d H:i A" %}
+                                <p class="text-xs uppercase tracking-wide text-slate-500">{% firstof formatted queued_timestamp %}</p>
+                            {% endwith %}
+                            <p class="text-sm text-slate-500">Message persisted and awaiting provider dispatch.</p>
+                        </div>
+                    </li>
+                    {% endif %}
 
-                {% if not object.sent_at and not object.delivered_at %}
-                <li class="flex flex-col gap-1 text-sm text-slate-500">
-                    <p>No delivery events recorded for this message yet.</p>
-                </li>
-                {% endif %}
+                    {% if sent_timestamp %}
+                    <li class="relative flex gap-4">
+                        <div class="flex h-full flex-col items-center">
+                            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                                    <path d="M22 2L11 13" />
+                                    <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                                </svg>
+                            </span>
+                            {% if delivered_timestamp %}
+                            <span aria-hidden="true" class="mt-2 h-full w-px bg-slate-200"></span>
+                            {% endif %}
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <p class="text-sm font-semibold text-slate-900">Message Sent</p>
+                            <p class="text-xs uppercase tracking-wide text-slate-500">{{ sent_timestamp|date:"Y-m-d H:i A" }}</p>
+                            <p class="text-sm text-slate-500">The message was successfully handed off to the provider.</p>
+                        </div>
+                    </li>
+                    {% endif %}
+
+                    {% if delivered_timestamp %}
+                    <li class="relative flex gap-4">
+                        <div class="flex h-full flex-col items-center">
+                            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                                    <path d="M2 11l10 3l10-3" />
+                                    <path d="M6 3h12" />
+                                </svg>
+                            </span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <p class="text-sm font-semibold text-slate-900">Delivered to Device</p>
+                            <p class="text-xs uppercase tracking-wide text-slate-500">{{ delivered_timestamp|date:"Y-m-d H:i A" }}</p>
+                            <p class="text-sm text-slate-500">Confirmation that the device acknowledged delivery.</p>
+                        </div>
+                    </li>
+                    {% endif %}
+
+                    {% if not request_timestamp and not queued_timestamp and not sent_timestamp and not delivered_timestamp %}
+                    <li class="flex flex-col gap-1 text-sm text-slate-500">
+                        <p>No delivery events recorded for this message yet.</p>
+                    </li>
+                    {% endif %}
+                {% endwith %}
             </ol>
         </div>
     </section>

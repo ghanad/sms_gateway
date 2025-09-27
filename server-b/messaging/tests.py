@@ -982,17 +982,29 @@ class MessageDetailViewTests(TestCase):
         self.assertContains(response, "Message Details")
         self.assertContains(response, "Cost")
         self.assertContains(response, "N/A")
+        self.assertNotContains(response, "Sent At")
+        self.assertNotContains(response, "Delivered At")
 
     def test_detail_view_renders_timeline_when_dates_present(self):
-        sent_at = timezone.now().replace(microsecond=0)
+        initial_received = timezone.now().replace(microsecond=0) - timedelta(minutes=5)
+        queued_at = initial_received + timedelta(minutes=1)
+        sent_at = queued_at + timedelta(minutes=1)
         delivered_at = sent_at + timedelta(minutes=2)
+
+        self.message.initial_envelope = {"created_at": initial_received.isoformat()}
         self.message.sent_at = sent_at
         self.message.delivered_at = delivered_at
-        self.message.save(update_fields=["sent_at", "delivered_at"])
+        self.message.save(update_fields=["initial_envelope", "sent_at", "delivered_at"])
+        Message.objects.filter(pk=self.message.pk).update(created_at=queued_at)
+        self.message.refresh_from_db()
 
         self.client.login(username="user", password="pass")
         url = reverse("messaging:message_detail", args=[self.message.tracking_id])
         response = self.client.get(url)
+        self.assertContains(response, "Request Received")
+        self.assertContains(response, initial_received.isoformat())
+        self.assertContains(response, "Queued for Processing")
+        self.assertContains(response, queued_at.strftime("%Y-%m-%d %H:%M %p"))
         self.assertContains(response, "Message Sent")
         self.assertContains(response, sent_at.strftime("%Y-%m-%d %H:%M %p"))
         self.assertContains(response, "Delivered to Device")
