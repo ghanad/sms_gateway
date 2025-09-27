@@ -212,9 +212,13 @@ def test_update_delivery_statuses_updates_recent_messages(monkeypatch):
     assert delivered_message.error_message == ""
     assert delivered_message.delivered_at is not None
     assert module.timezone.is_aware(delivered_message.delivered_at)
+    assert delivered_message.delivered_at.tzinfo is not None
+    tzinfo = delivered_message.delivered_at.tzinfo
+    zone_name = getattr(tzinfo, "zone", getattr(tzinfo, "key", None))
+    assert zone_name == "Asia/Tehran"
     assert (
-        delivered_message.delivered_at
-        == datetime.datetime(2024, 1, 2, 10, 30, tzinfo=datetime.timezone.utc)
+        delivered_message.delivered_at.astimezone(datetime.timezone.utc)
+        == datetime.datetime(2024, 1, 2, 7, 0, tzinfo=datetime.timezone.utc)
     )
     assert delivered_message.saved[0] == ["status", "delivered_at", "error_message"]
 
