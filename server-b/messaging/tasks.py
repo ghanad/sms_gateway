@@ -6,6 +6,13 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 
 import pika
+try:
+    import pytz
+except ImportError:  # pragma: no cover - fallback for limited environments
+    from types import SimpleNamespace
+    from zoneinfo import ZoneInfo
+
+    pytz = SimpleNamespace(timezone=lambda name: ZoneInfo(name))
 from celery import shared_task
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -33,6 +40,9 @@ from sms_gateway_project.metrics import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+TEHRAN_TZ = pytz.timezone("Asia/Tehran")
 
 
 def _provider_label(provider: SmsProvider) -> str:
@@ -82,22 +92,15 @@ def _parse_provider_timestamp(value):
         return None
 
     if isinstance(value, datetime):
-        dt = value
-    else:
-        try:
-            dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            try:
-                dt = datetime.fromisoformat(str(value))
-            except ValueError:
-                return None
+        return value
 
-    if timezone.is_naive(dt):
+    try:
+        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
         try:
-            return timezone.make_aware(dt, timezone.get_current_timezone())
-        except Exception:  # pragma: no cover - defensive guard
+            return datetime.fromisoformat(str(value))
+        except ValueError:
             return None
-    return dt
 
 
 @shared_task
@@ -162,6 +165,11 @@ def update_delivery_statuses():
 
             if target_status == MessageStatus.DELIVERED:
                 delivered_at = _parse_provider_timestamp(status_info.get("delivered_at"))
+                if delivered_at and timezone.is_naive(delivered_at):
+                    try:
+                        delivered_at = timezone.make_aware(delivered_at, TEHRAN_TZ)
+                    except Exception:  # pragma: no cover - defensive guard
+                        delivered_at = None
                 message.delivered_at = delivered_at
                 update_fields.append("delivered_at")
                 if message.error_message:

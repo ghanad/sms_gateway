@@ -46,7 +46,10 @@ class MessageDetailView(LoginRequiredMixin, DetailView):
     slug_url_kwarg = 'tracking_id'
 
     def get_queryset(self):
-        return Message.objects.filter(user=self.request.user)
+        return (
+            Message.objects.select_related('provider', 'user')
+            .filter(user=self.request.user)
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -64,7 +67,7 @@ class AdminMessageDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView
         return self.request.user.is_staff
 
     def get_queryset(self):
-        return Message.objects.all()
+        return Message.objects.select_related('provider', 'user').all()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
