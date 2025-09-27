@@ -182,6 +182,7 @@ CELERY_BROKER_URL = os.environ.get(
 
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'rpc://')
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_IGNORE_RESULT = True
 CELERY_IMPORTS = (
     'core.state_broadcaster',
     'user_management.tasks',
