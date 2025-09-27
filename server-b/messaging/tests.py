@@ -1002,13 +1002,17 @@ class MessageDetailViewTests(TestCase):
         url = reverse("messaging:message_detail", args=[self.message.tracking_id])
         response = self.client.get(url)
         self.assertContains(response, "Request Received")
-        self.assertContains(response, initial_received.isoformat())
+        self.assertContains(response, f'data-utc="{initial_received.isoformat()}"')
+        self.assertContains(response, initial_received.strftime("%Y-%m-%d %I:%M %p"))
         self.assertContains(response, "Queued for Processing")
-        self.assertContains(response, queued_at.strftime("%Y-%m-%d %H:%M %p"))
+        self.assertContains(response, f'data-utc="{queued_at.isoformat()}"')
+        self.assertContains(response, queued_at.strftime("%Y-%m-%d %I:%M %p"))
         self.assertContains(response, "Message Sent")
-        self.assertContains(response, sent_at.strftime("%Y-%m-%d %H:%M %p"))
+        self.assertContains(response, f'data-utc="{sent_at.isoformat()}"')
+        self.assertContains(response, sent_at.strftime("%Y-%m-%d %I:%M %p"))
         self.assertContains(response, "Delivered to Device")
-        self.assertContains(response, delivered_at.strftime("%Y-%m-%d %H:%M %p"))
+        self.assertContains(response, f'data-utc="{delivered_at.isoformat()}"')
+        self.assertContains(response, delivered_at.strftime("%Y-%m-%d %I:%M %p"))
 
 
 class AdminMessageListViewTests(TestCase):

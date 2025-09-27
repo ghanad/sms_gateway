@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load messaging_time %}
 
 {% block content %}
 <div class="flex flex-col gap-8">
@@ -80,8 +81,14 @@
                         </div>
                         <div class="flex flex-col gap-1">
                             <p class="text-sm font-semibold text-slate-900">Request Received</p>
-                            {% with formatted=request_timestamp|date:"Y-m-d H:i A" %}
-                                <p class="text-xs uppercase tracking-wide text-slate-500">{% firstof formatted request_timestamp %}</p>
+                            {% with request_dt=request_timestamp|coerce_datetime %}
+                                <p class="utc-time text-xs uppercase tracking-wide text-slate-500" data-utc="{{ request_dt|date:'c'|default:request_timestamp }}">
+                                    {% if request_dt %}
+                                    {{ request_dt|date:"Y-m-d h:i A" }}
+                                    {% else %}
+                                    {{ request_timestamp }}
+                                    {% endif %}
+                                </p>
                             {% endwith %}
                             <p class="text-sm text-slate-500">Gateway accepted the inbound request.</p>
                         </div>
@@ -104,8 +111,14 @@
                         </div>
                         <div class="flex flex-col gap-1">
                             <p class="text-sm font-semibold text-slate-900">Queued for Processing</p>
-                            {% with formatted=queued_timestamp|date:"Y-m-d H:i A" %}
-                                <p class="text-xs uppercase tracking-wide text-slate-500">{% firstof formatted queued_timestamp %}</p>
+                            {% with queued_dt=queued_timestamp|coerce_datetime %}
+                                <p class="utc-time text-xs uppercase tracking-wide text-slate-500" data-utc="{{ queued_dt|date:'c'|default:queued_timestamp }}">
+                                    {% if queued_dt %}
+                                    {{ queued_dt|date:"Y-m-d h:i A" }}
+                                    {% else %}
+                                    {{ queued_timestamp }}
+                                    {% endif %}
+                                </p>
                             {% endwith %}
                             <p class="text-sm text-slate-500">Message persisted and awaiting provider dispatch.</p>
                         </div>
@@ -127,7 +140,15 @@
                         </div>
                         <div class="flex flex-col gap-1">
                             <p class="text-sm font-semibold text-slate-900">Message Sent</p>
-                            <p class="text-xs uppercase tracking-wide text-slate-500">{{ sent_timestamp|date:"Y-m-d H:i A" }}</p>
+                            {% with sent_dt=sent_timestamp|coerce_datetime %}
+                                <p class="utc-time text-xs uppercase tracking-wide text-slate-500" data-utc="{{ sent_dt|date:'c'|default:sent_timestamp }}">
+                                    {% if sent_dt %}
+                                    {{ sent_dt|date:"Y-m-d h:i A" }}
+                                    {% else %}
+                                    {{ sent_timestamp }}
+                                    {% endif %}
+                                </p>
+                            {% endwith %}
                             <p class="text-sm text-slate-500">The message was successfully handed off to the provider.</p>
                         </div>
                     </li>
@@ -146,7 +167,15 @@
                         </div>
                         <div class="flex flex-col gap-1">
                             <p class="text-sm font-semibold text-slate-900">Delivered to Device</p>
-                            <p class="text-xs uppercase tracking-wide text-slate-500">{{ delivered_timestamp|date:"Y-m-d H:i A" }}</p>
+                            {% with delivered_dt=delivered_timestamp|coerce_datetime %}
+                                <p class="utc-time text-xs uppercase tracking-wide text-slate-500" data-utc="{{ delivered_dt|date:'c'|default:delivered_timestamp }}">
+                                    {% if delivered_dt %}
+                                    {{ delivered_dt|date:"Y-m-d h:i A" }}
+                                    {% else %}
+                                    {{ delivered_timestamp }}
+                                    {% endif %}
+                                </p>
+                            {% endwith %}
                             <p class="text-sm text-slate-500">Confirmation that the device acknowledged delivery.</p>
                         </div>
                     </li>
