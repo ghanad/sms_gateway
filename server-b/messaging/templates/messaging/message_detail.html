@@ -19,7 +19,12 @@
             <p><strong>User:</strong> {{ object.user.username }}</p>
             <p><strong>Recipient:</strong> {{ object.recipient }}</p>
             <p><strong>Text:</strong> {{ object.text }}</p>
-            <p><strong>Status:</strong> {{ object.get_status_display }}</p>
+            <p><strong>Status:</strong>
+                <span class="pill {{ object.status_pill_class }}">{{ object.get_status_display }}</span>
+            </p>
+            {% if object.delivered_at %}
+                <p><strong>Delivered At:</strong> <span class="utc-time" data-utc="{{ object.delivered_at|date:'c' }}"></span></p>
+            {% endif %}
             <p><strong>Provider:</strong> {{ object.provider.name }}</p>
         </div>
     </section>

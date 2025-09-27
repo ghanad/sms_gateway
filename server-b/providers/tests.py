@@ -57,6 +57,9 @@ class MagfaSmsProviderAdapterTests(TestCase):
         )
         self.adapter = MagfaSmsProvider(self.provider)
 
+    def test_supports_status_check_true(self):
+        self.assertTrue(self.adapter.supports_status_check)
+
     @patch("providers.adapters.requests.post")
     def test_success(self, mock_post):
         mock_post.return_value.raise_for_status.return_value = None
@@ -68,6 +71,30 @@ class MagfaSmsProviderAdapterTests(TestCase):
         result = self.adapter.send_sms("123", "hi")
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["message_id"], "1")
+
+    @patch("providers.adapters.requests.get")
+    def test_check_status_success(self, mock_get):
+        mock_get.return_value.raise_for_status.return_value = None
+        mock_get.return_value.json.return_value = {
+            "status": 0,
+            "dlrs": [
+                {"mid": 1, "status": 1, "date": "2020-01-01 00:00:00"},
+                {"mid": 2, "status": 2, "date": "2020-01-02 00:00:00"},
+                {"mid": 3, "status": 0, "date": "2020-01-03 00:00:00"},
+            ],
+        }
+
+        result = self.adapter.check_status(["1", "2", "3"])
+
+        self.assertEqual(result["1"]["status"], "DELIVERED")
+        self.assertEqual(result["1"]["delivered_at"], "2020-01-01 00:00:00")
+        self.assertEqual(result["2"]["status"], "FAILED")
+        self.assertNotIn("3", result)
+
+        mock_get.assert_called_once()
+        args, kwargs = mock_get.call_args
+        self.assertEqual(args[0], "http://example.com/statuses/1,2,3")
+        self.assertIn("timeout", kwargs)
 
     @patch("providers.adapters.requests.post")
     def test_permanent_failure(self, mock_post):

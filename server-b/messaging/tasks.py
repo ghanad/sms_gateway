@@ -2,6 +2,8 @@ import json
 import logging
 import time
 import uuid
+from collections import defaultdict
+from datetime import datetime, timedelta
 
 import pika
 from celery import shared_task
@@ -73,6 +75,112 @@ def _record_final_metrics(message: Message, finalized_at=None) -> None:
 
     if duration >= 0:
         SMS_PROCESSING_DURATION_SECONDS.observe(duration)
+
+
+def _parse_provider_timestamp(value):
+    if not value:
+        return None
+
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            try:
+                dt = datetime.fromisoformat(str(value))
+            except ValueError:
+                return None
+
+    if timezone.is_naive(dt):
+        try:
+            return timezone.make_aware(dt, timezone.get_current_timezone())
+        except Exception:  # pragma: no cover - defensive guard
+            return None
+    return dt
+
+
+@shared_task
+def update_delivery_statuses():
+    cutoff = timezone.now() - timedelta(hours=72)
+    messages = (
+        Message.objects.select_related("provider")
+        .filter(
+            status=MessageStatus.SENT_TO_PROVIDER,
+            updated_at__gte=cutoff,
+            provider__isnull=False,
+        )
+        .exclude(provider_message_id__isnull=True)
+        .exclude(provider_message_id__exact="")
+    )
+
+    grouped_messages = defaultdict(list)
+    provider_map = {}
+    for message in messages:
+        provider = message.provider
+        if not provider:
+            continue
+        provider_map[provider.pk] = provider
+        grouped_messages[provider.pk].append(message)
+
+    for provider_pk, provider_messages in grouped_messages.items():
+        provider = provider_map.get(provider_pk)
+        if not provider:
+            continue
+
+        adapter = get_provider_adapter(provider)
+        if not getattr(adapter, "supports_status_check", False):
+            continue
+        if not adapter.supports_status_check:
+            continue
+
+        provider_message_ids = [m.provider_message_id for m in provider_messages if m.provider_message_id]
+        if not provider_message_ids:
+            continue
+
+        status_payload = adapter.check_status(provider_message_ids)
+        if not status_payload:
+            continue
+
+        for message in provider_messages:
+            status_info = None
+            for key in (message.provider_message_id, str(message.provider_message_id)):
+                if key in status_payload:
+                    status_info = status_payload[key]
+                    break
+
+            if not status_info:
+                continue
+
+            target_status = status_info.get("status")
+            if target_status not in (MessageStatus.DELIVERED, MessageStatus.FAILED):
+                continue
+
+            message.status = target_status
+            update_fields = ["status"]
+            finalized_at = timezone.now()
+
+            if target_status == MessageStatus.DELIVERED:
+                delivered_at = _parse_provider_timestamp(status_info.get("delivered_at"))
+                message.delivered_at = delivered_at
+                update_fields.append("delivered_at")
+                if message.error_message:
+                    message.error_message = ""
+                    update_fields.append("error_message")
+                if delivered_at:
+                    finalized_at = delivered_at
+            else:
+                if message.delivered_at is not None:
+                    message.delivered_at = None
+                    update_fields.append("delivered_at")
+                provider_status_code = status_info.get("provider_status")
+                if provider_status_code is not None:
+                    message.error_message = f"Delivery failed (provider status {provider_status_code})"
+                    update_fields.append("error_message")
+
+            message.save(update_fields=list(dict.fromkeys(update_fields)))
+            _record_final_metrics(message, finalized_at=finalized_at)
+
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
 def process_outbound_sms(self, envelope: dict):

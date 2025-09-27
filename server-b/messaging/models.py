@@ -14,6 +14,16 @@ class MessageStatus(models.TextChoices):
     REJECTED = 'REJECTED', 'Rejected internally'
 
 class Message(models.Model):
+    STATUS_PILL_CLASSES = {
+        MessageStatus.PENDING: "pill--pending",
+        MessageStatus.PROCESSING: "pill--processing",
+        MessageStatus.AWAITING_RETRY: "pill--retry",
+        MessageStatus.SENT_TO_PROVIDER: "pill--sent",
+        MessageStatus.DELIVERED: "pill--delivered",
+        MessageStatus.FAILED: "pill--off",
+        MessageStatus.REJECTED: "pill--off",
+    }
+
     # --- Core information from RabbitMQ ---
     user = models.ForeignKey(
         User,
@@ -79,9 +89,20 @@ class Message(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, help_text="Timestamp when the message was received from the queue")
     updated_at = models.DateTimeField(auto_now=True, help_text="Timestamp of the last status update")
     sent_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp of successful sending to the provider")
+    delivered_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the provider confirmed final delivery",
+    )
 
     def __str__(self):
         return f"To: {self.recipient} via {self.provider.name if self.provider else 'N/A'} [{self.status}]"
+
+    @property
+    def status_pill_class(self) -> str:
+        """Return the CSS class used to render the status pill in templates."""
+
+        return self.STATUS_PILL_CLASSES.get(self.status, "pill--on")
 
     class Meta:
         ordering = ['-created_at']
