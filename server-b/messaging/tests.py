@@ -1,6 +1,8 @@
 import json
 import uuid
 import os
+from datetime import timedelta
+
 import django
 import pika
 from unittest.mock import MagicMock, patch, call, ANY
@@ -13,6 +15,7 @@ from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from messaging.models import Message, MessageStatus, MessageAttemptLog, AttemptStatus
 from messaging.tasks import (
@@ -1005,6 +1008,33 @@ class AdminMessageListViewTests(TestCase):
         response = self.client.get(url)
         detail_url = reverse("messaging:admin_message_detail", args=[self.message.tracking_id])
         self.assertContains(response, detail_url)
+
+    def test_status_pill_and_timestamp_use_delivery_information(self):
+        delivered_at = timezone.now().replace(microsecond=0)
+        sent_at = delivered_at - timedelta(minutes=10)
+        self.message.status = MessageStatus.DELIVERED
+        self.message.sent_at = sent_at
+        self.message.delivered_at = delivered_at
+        self.message.save(update_fields=["status", "sent_at", "delivered_at"])
+
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+
+        self.assertContains(response, "pill--delivered")
+        self.assertContains(response, delivered_at.isoformat())
+
+    def test_awaiting_retry_renders_error_message(self):
+        self.message.status = MessageStatus.AWAITING_RETRY
+        self.message.error_message = "temporary failure"
+        self.message.save(update_fields=["status", "error_message"])
+
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+
+        self.assertContains(response, "pill--retry")
+        self.assertContains(response, "temporary failure")
 
 
 class AdminMessageDetailViewTests(TestCase):
