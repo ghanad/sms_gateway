@@ -1,63 +1,134 @@
 {% extends 'base.html' %}
-{% load static %}
-
-{% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
-{% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="header">
-        <div>
-            <h1 class="title">Message Details</h1>
-            <p class="subtitle">Full history for this message.</p>
-        </div>
-    </div>
+<div class="flex flex-col gap-8">
+    <nav aria-label="Breadcrumb" class="flex items-center gap-2 text-sm text-slate-500">
+        <a href="{% url 'messaging:my_messages_list' %}" class="font-medium text-slate-600 transition hover:text-slate-900">Messages</a>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+        </svg>
+        <span class="font-semibold text-slate-900">Message Details</span>
+    </nav>
 
-    <section class="card">
-        <div class="card__body">
-            <p><strong>User:</strong> {{ object.user.username }}</p>
-            <p><strong>Recipient:</strong> {{ object.recipient }}</p>
-            <p><strong>Text:</strong> {{ object.text }}</p>
-            <p><strong>Status:</strong>
-                <span class="pill {{ object.status_pill_class }}">{{ object.get_status_display }}</span>
-            </p>
-            {% if object.delivered_at %}
-                <p><strong>Delivered At:</strong> <span class="utc-time" data-utc="{{ object.delivered_at|date:'c' }}"></span></p>
-            {% endif %}
-            <p><strong>Provider:</strong> {{ object.provider.name }}</p>
+    <header class="flex flex-col gap-3">
+        <div>
+            <h1 class="text-3xl font-semibold text-slate-900">Message Details</h1>
+            <p class="text-slate-500">Full history for this SMS message.</p>
+        </div>
+        <div class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700">
+            <span class="inline-flex size-2 rounded-full bg-emerald-500"></span>
+            {{ object.get_status_display }}
+        </div>
+    </header>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-8">
+            <div class="flex flex-col gap-1">
+                <h2 class="text-xl font-semibold text-slate-900">Message Details</h2>
+                <p class="text-sm text-slate-500">Key information about this delivery.</p>
+            </div>
+            <dl class="grid gap-6 md:grid-cols-2">
+                <div class="flex flex-col gap-1">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Message ID</dt>
+                    <dd class="text-base font-medium text-slate-900 break-all">{{ object.tracking_id }}</dd>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Recipient</dt>
+                    <dd class="text-base font-medium text-slate-900">{{ object.recipient }}</dd>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Sender</dt>
+                    <dd class="text-base font-medium text-slate-900">{{ object.provider.default_sender }}</dd>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</dt>
+                    <dd class="text-base font-medium text-slate-900">{{ object.get_status_display }}</dd>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Sent At</dt>
+                    <dd class="text-base font-medium text-slate-900">
+                        {% if object.sent_at %}
+                            {{ object.sent_at|date:"Y-m-d H:i A" }}
+                        {% else %}
+                            <span class="text-slate-400">Pending</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Delivered At</dt>
+                    <dd class="text-base font-medium text-slate-900">
+                        {% if object.delivered_at %}
+                            {{ object.delivered_at|date:"Y-m-d H:i A" }}
+                        {% else %}
+                            <span class="text-slate-400">Pending</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Message Content</dt>
+                    <dd class="text-base font-medium text-slate-900 whitespace-pre-line">{{ object.text }}</dd>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost</dt>
+                    <dd class="text-base font-medium text-slate-900">N/A</dd>
+                </div>
+            </dl>
         </div>
     </section>
 
-    <section class="card">
-        <div class="card__body">
-            <h2>Attempt History</h2>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Provider</th>
-                            <th>Timestamp</th>
-                            <th>Status</th>
-                            <th>Provider Response</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for attempt in attempt_logs %}
-                        <tr>
-                            <td>{{ attempt.provider.name }}</td>
-                            <td class="utc-time" data-utc="{{ attempt.timestamp|date:'c' }}"></td>
-                            <td>{{ attempt.get_status_display }}</td>
-                            <td><pre>{{ attempt.get_magfa_status_summary }}</pre></td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="4">No attempts logged.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-8">
+            <div class="flex flex-col gap-1">
+                <h2 class="text-xl font-semibold text-slate-900">Message Timeline</h2>
+                <p class="text-sm text-slate-500">Track the lifecycle of this message.</p>
             </div>
+            <ol class="relative flex flex-col gap-6">
+                {% if object.sent_at %}
+                <li class="relative flex gap-4">
+                    <div class="flex h-full flex-col items-center">
+                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                                <path d="M22 2L11 13" />
+                                <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                            </svg>
+                        </span>
+                        {% if object.delivered_at %}
+                        <span aria-hidden="true" class="mt-2 h-full w-px bg-slate-200"></span>
+                        {% endif %}
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <p class="text-sm font-semibold text-slate-900">Message Sent</p>
+                        <p class="text-xs uppercase tracking-wide text-slate-500">{{ object.sent_at|date:"Y-m-d H:i A" }}</p>
+                        <p class="text-sm text-slate-500">The message was successfully handed off to the provider.</p>
+                    </div>
+                </li>
+                {% endif %}
+
+                {% if object.delivered_at %}
+                <li class="relative flex gap-4">
+                    <div class="flex h-full flex-col items-center">
+                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                                <path d="M2 11l10 3l10-3" />
+                                <path d="M6 3h12" />
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <p class="text-sm font-semibold text-slate-900">Delivered to Device</p>
+                        <p class="text-xs uppercase tracking-wide text-slate-500">{{ object.delivered_at|date:"Y-m-d H:i A" }}</p>
+                        <p class="text-sm text-slate-500">Confirmation that the device acknowledged delivery.</p>
+                    </div>
+                </li>
+                {% endif %}
+
+                {% if not object.sent_at and not object.delivered_at %}
+                <li class="flex flex-col gap-1 text-sm text-slate-500">
+                    <p>No delivery events recorded for this message yet.</p>
+                </li>
+                {% endif %}
+            </ol>
         </div>
     </section>
 </div>

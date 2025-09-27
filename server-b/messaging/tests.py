@@ -973,13 +973,30 @@ class MessageDetailViewTests(TestCase):
             provider_response={"status": 0, "messages": [{"id": 123, "status": 0}]},
         )
 
-    def test_detail_view_displays_attempt_logs(self):
+    def test_detail_view_displays_message_details(self):
         self.client.login(username="user", password="pass")
         url = reverse("messaging:message_detail", args=[self.message.tracking_id])
         response = self.client.get(url)
         self.assertContains(response, self.message.recipient)
-        self.assertContains(response, "Success (Provider ID: 123)")
-        self.assertContains(response, self.provider.name)
+        self.assertContains(response, self.provider.default_sender)
+        self.assertContains(response, "Message Details")
+        self.assertContains(response, "Cost")
+        self.assertContains(response, "N/A")
+
+    def test_detail_view_renders_timeline_when_dates_present(self):
+        sent_at = timezone.now().replace(microsecond=0)
+        delivered_at = sent_at + timedelta(minutes=2)
+        self.message.sent_at = sent_at
+        self.message.delivered_at = delivered_at
+        self.message.save(update_fields=["sent_at", "delivered_at"])
+
+        self.client.login(username="user", password="pass")
+        url = reverse("messaging:message_detail", args=[self.message.tracking_id])
+        response = self.client.get(url)
+        self.assertContains(response, "Message Sent")
+        self.assertContains(response, sent_at.strftime("%Y-%m-%d %H:%M %p"))
+        self.assertContains(response, "Delivered to Device")
+        self.assertContains(response, delivered_at.strftime("%Y-%m-%d %H:%M %p"))
 
 
 class AdminMessageListViewTests(TestCase):
