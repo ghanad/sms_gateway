@@ -67,12 +67,25 @@ class MagfaSmsProviderAdapterTests(TestCase):
         mock_post.return_value.raise_for_status.return_value = None
         mock_post.return_value.json.return_value = {
             "status": 0,
-            "messages": [{"id": "1", "status": 0}],
+            "messages": [{"id": "1", "status": 0, "tariff": "250", "parts": 2}],
         }
 
         result = self.adapter.send_sms("123", "hi")
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["message_id"], "1")
+        self.assertEqual(result["cost"], 500)
+
+    @patch("providers.adapters.requests.post")
+    def test_cost_invalid_or_missing(self, mock_post):
+        mock_post.return_value.raise_for_status.return_value = None
+        mock_post.return_value.json.return_value = {
+            "status": 0,
+            "messages": [{"id": "1", "status": 0, "tariff": "foo", "parts": None}],
+        }
+
+        result = self.adapter.send_sms("123", "hi")
+        self.assertEqual(result["status"], "success")
+        self.assertIsNone(result["cost"])
 
     @patch("providers.adapters.requests.get")
     def test_check_status_success(self, mock_get):
