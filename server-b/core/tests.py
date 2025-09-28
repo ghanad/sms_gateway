@@ -93,7 +93,7 @@ class ServerAUserGuideTests(TestCase):
     def test_user_guide_includes_endpoint_details(self):
         self.client.login(username='doc_user', password='pass')
         response = self.client.get(reverse('server_a_user_guide'))
-        self.assertContains(response, 'http://localhost:8001')
+        self.assertContains(response, 'https://RESTAPI-IP')
         self.assertContains(response, 'POST /api/v1/sms/send')
 
     def test_user_guide_uses_tabbed_layout(self):
