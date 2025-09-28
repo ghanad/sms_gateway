@@ -8,7 +8,7 @@ class UserMessageListView(LoginRequiredMixin, ListView):
     model = Message
     template_name = 'messaging/message_list.html'
     context_object_name = 'message_list'
-    paginate_by = 25
+    paginate_by = 10
 
     def get_queryset(self):
         queryset = Message.objects.filter(user=self.request.user).order_by('-sent_at')
@@ -38,7 +38,7 @@ class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Message
     template_name = 'messaging/admin_message_list.html'
     context_object_name = 'message_list'
-    paginate_by = 25
+    paginate_by = 10
 
     def test_func(self):
         return self.request.user.is_staff

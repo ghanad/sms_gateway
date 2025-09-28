@@ -165,12 +165,16 @@ class UserMessageListViewTests(TestCase):
         response = self.client.get(url)
 
         self.assertTrue(response.context["is_paginated"])
-        self.assertEqual(len(response.context["message_list"]), 25)
+        self.assertEqual(len(response.context["message_list"]), 10)
         self.assertContains(response, "?page=2")
 
         response_page_2 = self.client.get(url, {"page": 2})
-        self.assertEqual(len(response_page_2.context["message_list"]), 5)
+        self.assertEqual(len(response_page_2.context["message_list"]), 10)
         self.assertContains(response_page_2, "?page=1")
+
+        response_page_3 = self.client.get(url, {"page": 3})
+        self.assertEqual(len(response_page_3.context["message_list"]), 10)
+        self.assertContains(response_page_3, "?page=2")
 
     def test_replace_query_preserves_existing_parameters(self):
         request = HttpRequest()
@@ -225,8 +229,12 @@ class AdminMessageListViewTests(TestCase):
         self.assertContains(response, "?page=2")
 
         response_page_2 = self.client.get(url, {"page": 2})
-        self.assertEqual(len(response_page_2.context["message_list"]), 5)
+        self.assertEqual(len(response_page_2.context["message_list"]), 10)
         self.assertContains(response_page_2, "?page=1")
+
+        response_page_3 = self.client.get(url, {"page": 3})
+        self.assertEqual(len(response_page_3.context["message_list"]), 10)
+        self.assertContains(response_page_3, "?page=2")
 
 
 class ProcessOutboundSmsTaskTests(TestCase):
