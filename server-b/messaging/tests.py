@@ -2,6 +2,7 @@ import json
 import uuid
 import os
 from datetime import timedelta
+from decimal import Decimal
 
 import django
 import pika
@@ -538,6 +539,7 @@ class SendSmsWithFailoverTaskTests(TestCase):
             "status": "success",
             "message_id": "xyz",
             "raw_response": {},
+            "cost": Decimal("12.50"),
         }
         mock_get_adapter.side_effect = [adapter1, adapter2]
 
@@ -547,6 +549,7 @@ class SendSmsWithFailoverTaskTests(TestCase):
         self.assertEqual(self.message.status, MessageStatus.SENT_TO_PROVIDER)
         self.assertEqual(self.message.provider, self.provider2)
         self.assertEqual(self.message.provider_message_id, "xyz")
+        self.assertEqual(self.message.cost, Decimal("12.50"))
         adapter1.send_sms.assert_called_once()
         adapter2.send_sms.assert_called_once()
 
@@ -984,6 +987,16 @@ class MessageDetailViewTests(TestCase):
         self.assertContains(response, "N/A")
         self.assertNotContains(response, "Sent At")
         self.assertNotContains(response, "Delivered At")
+
+    def test_detail_view_displays_cost_when_available(self):
+        self.message.cost = Decimal("45.67")
+        self.message.save(update_fields=["cost"])
+
+        self.client.login(username="user", password="pass")
+        url = reverse("messaging:message_detail", args=[self.message.tracking_id])
+        response = self.client.get(url)
+        self.assertContains(response, "45.67")
+        self.assertNotContains(response, "N/A")
 
     def test_detail_view_renders_timeline_when_dates_present(self):
         initial_received = timezone.now().replace(microsecond=0) - timedelta(minutes=5)

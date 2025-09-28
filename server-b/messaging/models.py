@@ -79,6 +79,14 @@ class Message(models.Model):
         blank=True,
         help_text="The full API response from the provider"
     )
+    cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=None,
+        help_text="The cost of the message as reported by the provider."
+    )
     error_message = models.TextField(
         null=True,
         blank=True,

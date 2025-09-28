@@ -79,12 +79,14 @@ class MagfaSmsProvider(BaseSmsProvider):
         status_code = data.get('status')
         message_info = (data.get('messages') or [{}])[0]
         provider_message_id = message_info.get('id')
+        cost = message_info.get('tariff')
 
         if status_code == 0:
             return {
                 'status': 'success',
                 'message_id': provider_message_id,
                 'raw_response': data,
+                'cost': cost,
             }
         if status_code in (1, 27, 33):
             reason = f"Permanent failure (Code {status_code})"

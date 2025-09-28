@@ -358,7 +358,18 @@ def send_sms_with_failover(self, message_id: int):
             message.provider_response = result.get("raw_response")
             message.sent_at = finalized_at
             message.error_message = ""
-            message.save()
+            update_fields = [
+                "status",
+                "provider",
+                "provider_message_id",
+                "provider_response",
+                "sent_at",
+                "error_message",
+            ]
+            if "cost" in result:
+                message.cost = result.get("cost")
+                update_fields.append("cost")
+            message.save(update_fields=update_fields)
             _record_final_metrics(message, finalized_at=finalized_at)
             break
 
