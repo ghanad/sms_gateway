@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load messaging_time %}
+{% load messaging_time messaging_currency %}
 
 {% block content %}
 <div class="flex flex-col gap-8">
@@ -51,7 +51,12 @@
                 </div>
                 <div class="flex flex-col gap-1">
                     <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost</dt>
-                    <dd class="text-base font-medium text-slate-900">{{ object.cost|default:"N/A" }}</dd>
+                    {# Costs are persisted in IRR; display normalised amount as tomans (IRT). #}
+                    {% if object.cost %}
+                    <dd class="text-base font-medium text-slate-900">IRT {{ object.cost|rial_to_toman }}</dd>
+                    {% else %}
+                    <dd class="text-base font-medium text-slate-900">N/A</dd>
+                    {% endif %}
                 </div>
             </dl>
         </div>

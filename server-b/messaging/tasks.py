@@ -367,6 +367,7 @@ def send_sms_with_failover(self, message_id: int):
                 "error_message",
             ]
             if "cost" in result:
+                # Provider adapters normalise costs to Iranian rials (IRR) before persisting.
                 message.cost = result.get("cost")
                 update_fields.append("cost")
             message.save(update_fields=update_fields)

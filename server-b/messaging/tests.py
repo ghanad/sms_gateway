@@ -15,7 +15,7 @@ from celery.exceptions import Retry
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.http import HttpRequest, QueryDict
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -25,6 +25,7 @@ from messaging.tasks import (
     dispatch_pending_messages,
     send_sms_with_failover,
 )
+from messaging.templatetags.messaging_currency import rial_to_toman
 from providers.models import AuthType, SmsProvider
 
 
@@ -1080,13 +1081,14 @@ class MessageDetailViewTests(TestCase):
         self.assertNotContains(response, "Delivered At")
 
     def test_detail_view_displays_cost_when_available(self):
-        self.message.cost = Decimal("45.67")
+        # Costs are persisted in IRR; 25000 IRR should render as 2500 IRT in the UI.
+        self.message.cost = Decimal("25000")
         self.message.save(update_fields=["cost"])
 
         self.client.login(username="user", password="pass")
         url = reverse("messaging:message_detail", args=[self.message.tracking_id])
         response = self.client.get(url)
-        self.assertContains(response, "45.67")
+        self.assertContains(response, "IRT 2500")
         self.assertNotContains(response, "N/A")
 
     def test_detail_view_renders_timeline_when_dates_present(self):
@@ -1268,3 +1270,13 @@ class MagfaStatusSummaryTests(TestCase):
         self.assertEqual(
             attempt.get_magfa_status_summary(), "Could not parse provider response."
         )
+
+
+class MessagingCurrencyFilterTests(SimpleTestCase):
+    def test_rial_to_toman_converts_and_rounds_down(self):
+        # 12345 IRR -> 1234.5 IRT -> 1234 after rounding down for display.
+        self.assertEqual(rial_to_toman(Decimal("12345")), "1234")
+
+    def test_rial_to_toman_handles_none_and_invalid_values(self):
+        self.assertEqual(rial_to_toman(None), "")
+        self.assertEqual(rial_to_toman("not-a-number"), "")

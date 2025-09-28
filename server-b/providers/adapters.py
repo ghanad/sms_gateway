@@ -89,6 +89,7 @@ class MagfaSmsProvider(BaseSmsProvider):
             except (InvalidOperation, TypeError):
                 total_cost = None
             else:
+                # Keep the cost in Iranian rials (IRR) so downstream logic persists a normalised value.
                 if total_cost == total_cost.to_integral_value():
                     total_cost = int(total_cost)
                 else:
