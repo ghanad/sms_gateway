@@ -14,6 +14,7 @@ django.setup()
 from celery.exceptions import Retry
 from django.contrib.auth.models import User
 from django.core.management import call_command
+from django.http import HttpRequest, QueryDict
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -144,6 +145,88 @@ class UserMessageListViewTests(TestCase):
         response = self.client.get(url)
         detail_url = reverse("messaging:message_detail", args=[self.msg1.tracking_id])
         self.assertContains(response, detail_url)
+
+    def test_pagination_limits_results(self):
+        self.client.login(username="user", password="pass")
+        Message.objects.all().delete()
+        messages = [
+            Message(
+                user=self.user,
+                tracking_id=uuid.uuid4(),
+                recipient=f"+12345{i}",
+                text=f"hello {i}",
+                provider=self.provider,
+            )
+            for i in range(30)
+        ]
+        Message.objects.bulk_create(messages)
+
+        url = reverse("messaging:my_messages_list")
+        response = self.client.get(url)
+
+        self.assertTrue(response.context["is_paginated"])
+        self.assertEqual(len(response.context["message_list"]), 25)
+        self.assertContains(response, "?page=2")
+
+        response_page_2 = self.client.get(url, {"page": 2})
+        self.assertEqual(len(response_page_2.context["message_list"]), 5)
+        self.assertContains(response_page_2, "?page=1")
+
+    def test_replace_query_preserves_existing_parameters(self):
+        request = HttpRequest()
+        request.GET = QueryDict("tracking_id=abc123")
+
+        from django.template import Context, Template
+
+        template = Template("{% load pagination_tags %}{% replace_query page=2 %}")
+        rendered = template.render(Context({"request": request}))
+
+        self.assertIn("tracking_id=abc123", rendered)
+        self.assertIn("page=2", rendered)
+
+
+class AdminMessageListViewTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user("admin", password="pass", is_staff=True)
+        self.user = User.objects.create_user("user", password="pass")
+        self.provider = SmsProvider.objects.create(
+            name="Provider", 
+            slug="provider", 
+            send_url="http://example.com/send", 
+            balance_url="http://example.com/balance", 
+            default_sender="100", 
+            auth_type=AuthType.NONE,
+        )
+
+    def test_admin_list_requires_staff(self):
+        self.client.login(username="user", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_pagination_shows_navigation(self):
+        self.client.login(username="admin", password="pass")
+        messages = [
+            Message(
+                user=self.staff,
+                tracking_id=uuid.uuid4(),
+                recipient=f"+5555{i}",
+                text=f"hello {i}",
+                provider=self.provider,
+            )
+            for i in range(30)
+        ]
+        Message.objects.bulk_create(messages)
+
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+
+        self.assertTrue(response.context["is_paginated"])
+        self.assertContains(response, "?page=2")
+
+        response_page_2 = self.client.get(url, {"page": 2})
+        self.assertEqual(len(response_page_2.context["message_list"]), 5)
+        self.assertContains(response_page_2, "?page=1")
 
 
 class ProcessOutboundSmsTaskTests(TestCase):

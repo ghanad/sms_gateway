@@ -24,6 +24,14 @@ class UserMessageListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['tracking_id'] = self.request.GET.get('tracking_id', '').strip()
+        paginator = context.get('paginator')
+        page_obj = context.get('page_obj')
+        if paginator and page_obj:
+            context['page_range'] = paginator.get_elided_page_range(
+                page_obj.number, on_each_side=1, on_ends=1
+            )
+        else:
+            context['page_range'] = []
         return context
 
 class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -37,6 +45,18 @@ class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def get_queryset(self):
         return Message.objects.all().order_by('-sent_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        paginator = context.get('paginator')
+        page_obj = context.get('page_obj')
+        if paginator and page_obj:
+            context['page_range'] = paginator.get_elided_page_range(
+                page_obj.number, on_each_side=1, on_ends=1
+            )
+        else:
+            context['page_range'] = []
+        return context
 
 
 class MessageDetailView(LoginRequiredMixin, DetailView):
