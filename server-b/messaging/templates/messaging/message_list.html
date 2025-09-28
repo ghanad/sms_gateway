@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load pagination_tags %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
@@ -19,6 +20,11 @@
             border: 1px solid var(--border);
             text-decoration: none;
             transition: background-color 0.2s;
+        }
+        .pagination .page-item.ellipsis {
+            pointer-events: none;
+            background-color: transparent;
+            border: none;
         }
         .pagination .page-item.active {
             background-color: var(--ring);
@@ -99,21 +105,23 @@
     {% if is_paginated %}
     <nav class="pagination">
         {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}" class="page-item">&laquo;</a>
+            <a href="{% replace_query page=page_obj.previous_page_number %}" class="page-item">&laquo;</a>
         {% else %}
             <a href="#" class="page-item disabled">&laquo;</a>
         {% endif %}
 
-        {% for num in page_obj.paginator.page_range %}
-            {% if page_obj.number == num %}
-                <a href="?page={{ num }}" class="page-item active">{{ num }}</a>
+        {% for num in page_range %}
+            {% if num == '…' %}
+                <span class="page-item ellipsis">&hellip;</span>
+            {% elif page_obj.number == num %}
+                <a href="{% replace_query page=num %}" class="page-item active">{{ num }}</a>
             {% else %}
-                <a href="?page={{ num }}" class="page-item">{{ num }}</a>
+                <a href="{% replace_query page=num %}" class="page-item">{{ num }}</a>
             {% endif %}
         {% endfor %}
 
         {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}" class="page-item">&raquo;</a>
+            <a href="{% replace_query page=page_obj.next_page_number %}" class="page-item">&raquo;</a>
         {% else %}
             <a href="#" class="page-item disabled">&raquo;</a>
         {% endif %}

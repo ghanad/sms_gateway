@@ -8,7 +8,7 @@ class UserMessageListView(LoginRequiredMixin, ListView):
     model = Message
     template_name = 'messaging/message_list.html'
     context_object_name = 'message_list'
-    paginate_by = 25
+    paginate_by = 10
 
     def get_queryset(self):
         queryset = Message.objects.filter(user=self.request.user).order_by('-sent_at')
@@ -24,19 +24,39 @@ class UserMessageListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['tracking_id'] = self.request.GET.get('tracking_id', '').strip()
+        paginator = context.get('paginator')
+        page_obj = context.get('page_obj')
+        if paginator and page_obj:
+            context['page_range'] = paginator.get_elided_page_range(
+                page_obj.number, on_each_side=1, on_ends=1
+            )
+        else:
+            context['page_range'] = []
         return context
 
 class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Message
     template_name = 'messaging/admin_message_list.html'
     context_object_name = 'message_list'
-    paginate_by = 25
+    paginate_by = 10
 
     def test_func(self):
         return self.request.user.is_staff
 
     def get_queryset(self):
         return Message.objects.all().order_by('-sent_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        paginator = context.get('paginator')
+        page_obj = context.get('page_obj')
+        if paginator and page_obj:
+            context['page_range'] = paginator.get_elided_page_range(
+                page_obj.number, on_each_side=1, on_ends=1
+            )
+        else:
+            context['page_range'] = []
+        return context
 
 
 class MessageDetailView(LoginRequiredMixin, DetailView):
