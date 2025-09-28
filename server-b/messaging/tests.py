@@ -973,13 +973,46 @@ class MessageDetailViewTests(TestCase):
             provider_response={"status": 0, "messages": [{"id": 123, "status": 0}]},
         )
 
-    def test_detail_view_displays_attempt_logs(self):
+    def test_detail_view_displays_message_details(self):
         self.client.login(username="user", password="pass")
         url = reverse("messaging:message_detail", args=[self.message.tracking_id])
         response = self.client.get(url)
         self.assertContains(response, self.message.recipient)
-        self.assertContains(response, "Success (Provider ID: 123)")
-        self.assertContains(response, self.provider.name)
+        self.assertContains(response, self.provider.default_sender)
+        self.assertContains(response, "Message Details")
+        self.assertContains(response, "Cost")
+        self.assertContains(response, "N/A")
+        self.assertNotContains(response, "Sent At")
+        self.assertNotContains(response, "Delivered At")
+
+    def test_detail_view_renders_timeline_when_dates_present(self):
+        initial_received = timezone.now().replace(microsecond=0) - timedelta(minutes=5)
+        queued_at = initial_received + timedelta(minutes=1)
+        sent_at = queued_at + timedelta(minutes=1)
+        delivered_at = sent_at + timedelta(minutes=2)
+
+        self.message.initial_envelope = {"created_at": initial_received.isoformat()}
+        self.message.sent_at = sent_at
+        self.message.delivered_at = delivered_at
+        self.message.save(update_fields=["initial_envelope", "sent_at", "delivered_at"])
+        Message.objects.filter(pk=self.message.pk).update(created_at=queued_at)
+        self.message.refresh_from_db()
+
+        self.client.login(username="user", password="pass")
+        url = reverse("messaging:message_detail", args=[self.message.tracking_id])
+        response = self.client.get(url)
+        self.assertContains(response, "Request Received")
+        self.assertContains(response, f'data-utc="{initial_received.isoformat()}"')
+        self.assertContains(response, initial_received.strftime("%Y-%m-%d %I:%M %p"))
+        self.assertContains(response, "Queued for Processing")
+        self.assertContains(response, f'data-utc="{queued_at.isoformat()}"')
+        self.assertContains(response, queued_at.strftime("%Y-%m-%d %I:%M %p"))
+        self.assertContains(response, "Message Sent")
+        self.assertContains(response, f'data-utc="{sent_at.isoformat()}"')
+        self.assertContains(response, sent_at.strftime("%Y-%m-%d %I:%M %p"))
+        self.assertContains(response, "Delivered to Device")
+        self.assertContains(response, f'data-utc="{delivered_at.isoformat()}"')
+        self.assertContains(response, delivered_at.strftime("%Y-%m-%d %I:%M %p"))
 
 
 class AdminMessageListViewTests(TestCase):
