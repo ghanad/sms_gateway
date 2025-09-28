@@ -39,7 +39,7 @@
                         <p>
                             این API برای ارسال پیامک‌های ساده طراحی شده است و به شما کمک می‌کند پیام‌های متنی خود را به سادگی ارسال کنید.
                             نشانی سرویس در محیط محلی به صورت
-                            <code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">http://localhost:8001</code>
+                            <code class="bg-slate-100 px-1 py-0.5 rounded text-sm" dir="ltr">https://REST-IP</code>
                             در دسترس است.
                         </p>
                     </section>
@@ -84,7 +84,7 @@
                         <div class="space-y-4">
                             <div class="space-y-2">
                                 <h3 class="text-xl font-semibold text-slate-900">نمونه cURL</h3>
-                                <pre class="bg-slate-100 text-slate-900 rounded-xl p-4 overflow-x-auto" dir="ltr"><code>curl -X POST http://localhost:8001/api/v1/sms/send \
+                                <pre class="bg-slate-100 text-slate-900 rounded-xl p-4 overflow-x-auto" dir="ltr"><code>curl -k -X POST https://RESTAPI-IP/api/v1/sms/send \
   -H "Content-Type: application/json" \
   -H "API-Key: YOUR_API_KEY" \
   -d '{
@@ -96,7 +96,7 @@
                                 <h3 class="text-xl font-semibold text-slate-900">نمونه Python با کتابخانه requests</h3>
                                 <pre class="bg-slate-100 text-slate-900 rounded-xl p-4 overflow-x-auto" dir="ltr"><code>import requests
 
-url = "http://localhost:8001/api/v1/sms/send"
+url = "https://RESTAPI-IP/api/v1/sms/send"
 headers = {
     "Content-Type": "application/json",
     "API-Key": "YOUR_API_KEY"
@@ -106,7 +106,7 @@ payload = {
     "text": "سلام! این یک پیام تستی است."
 }
 
-response = requests.post(url, json=payload, headers=headers)
+response = requests.post(url, json=payload, headers=headers, verify=False)
 
 print("وضعیت:", response.status_code)
 print("پاسخ:", response.json())</code></pre>
