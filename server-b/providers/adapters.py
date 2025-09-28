@@ -86,6 +86,7 @@ class MagfaSmsProvider(BaseSmsProvider):
                 'status': 'success',
                 'message_id': provider_message_id,
                 'raw_response': data,
+                # // The 'tariff' from Magfa is in Rials, which is our base unit. No conversion needed.
                 'cost': cost,
             }
         if status_code in (1, 27, 33):
