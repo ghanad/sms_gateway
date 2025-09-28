@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from unittest.mock import patch
@@ -87,7 +89,10 @@ class MagfaSmsProviderAdapterTests(TestCase):
         result = self.adapter.check_status(["1", "2", "3"])
 
         self.assertEqual(result["1"]["status"], "DELIVERED")
-        self.assertEqual(result["1"]["delivered_at"], "2020-01-01 00:00:00")
+        delivered_at = result["1"]["delivered_at"]
+        self.assertIsInstance(delivered_at, datetime)
+        self.assertIsNone(delivered_at.tzinfo)
+        self.assertEqual(delivered_at, datetime(2020, 1, 1, 0, 0))
         self.assertEqual(result["2"]["status"], "FAILED")
         self.assertNotIn("3", result)
 
