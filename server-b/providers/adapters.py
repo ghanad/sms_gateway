@@ -1,5 +1,6 @@
 # server-b/providers/adapters.py
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 
 import requests
 
@@ -79,14 +80,26 @@ class MagfaSmsProvider(BaseSmsProvider):
         status_code = data.get('status')
         message_info = (data.get('messages') or [{}])[0]
         provider_message_id = message_info.get('id')
-        cost = message_info.get('tariff')
+        tariff = message_info.get('tariff')
+        parts = message_info.get('parts')
+        total_cost = None
+        if tariff is not None and parts is not None:
+            try:
+                total_cost = Decimal(str(tariff)) * Decimal(str(parts))
+            except (InvalidOperation, TypeError):
+                total_cost = None
+            else:
+                if total_cost == total_cost.to_integral_value():
+                    total_cost = int(total_cost)
+                else:
+                    total_cost = float(total_cost)
 
         if status_code == 0:
             return {
                 'status': 'success',
                 'message_id': provider_message_id,
                 'raw_response': data,
-                'cost': cost,
+                'cost': total_cost,
             }
         if status_code in (1, 27, 33):
             reason = f"Permanent failure (Code {status_code})"
