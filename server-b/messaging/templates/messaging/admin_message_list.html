@@ -39,6 +39,42 @@
         .pagination .page-item:hover {
             background-color: var(--bg2);
         }
+        .filter-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .filter-form__grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+        .filter-form__field label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-weight: 600;
+        }
+        .filter-form__actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+        .filter-form__actions .btn {
+            padding: 0.5rem 1.25rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            background-color: var(--ring);
+            color: #fff;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .filter-form__actions .btn.btn--secondary {
+            background-color: var(--bg2);
+            color: var(--text);
+        }
     </style>
 {% endblock extra_head %}
 
@@ -55,6 +91,34 @@
     <!-- Card -->
     <section class="card">
         <div class="card__body">
+            <form method="get" class="filter-form">
+                <div class="filter-form__grid">
+                    <div class="filter-form__field">
+                        {{ filter_form.username.label_tag }}
+                        {{ filter_form.username }}
+                    </div>
+                    <div class="filter-form__field">
+                        {{ filter_form.status.label_tag }}
+                        {{ filter_form.status }}
+                    </div>
+                    <div class="filter-form__field">
+                        {{ filter_form.provider.label_tag }}
+                        {{ filter_form.provider }}
+                    </div>
+                    <div class="filter-form__field">
+                        {{ filter_form.date_from.label_tag }}
+                        {{ filter_form.date_from }}
+                    </div>
+                    <div class="filter-form__field">
+                        {{ filter_form.date_to.label_tag }}
+                        {{ filter_form.date_to }}
+                    </div>
+                </div>
+                <div class="filter-form__actions">
+                    <button type="submit" class="btn">Filter</button>
+                    <a href="{% url 'messaging:admin_messages_list' %}" class="btn btn--secondary">Clear</a>
+                </div>
+            </form>
             <!-- Table -->
             <div class="table-wrap">
                 <table>

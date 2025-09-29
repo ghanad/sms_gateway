@@ -1,6 +1,7 @@
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import ListView, DetailView
 from .models import Message
+from .forms import MessageFilterForm
 import uuid
 
 
@@ -44,10 +45,37 @@ class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return self.request.user.is_staff
 
     def get_queryset(self):
-        return Message.objects.all().order_by('-sent_at')
+        self.filter_form = MessageFilterForm(self.request.GET or None)
+        queryset = Message.objects.all().order_by('-sent_at')
+
+        if self.filter_form.is_valid():
+            data = self.filter_form.cleaned_data
+
+            username = data.get('username')
+            if username:
+                queryset = queryset.filter(user__username__icontains=username)
+
+            status = data.get('status')
+            if status:
+                queryset = queryset.filter(status=status)
+
+            provider = data.get('provider')
+            if provider:
+                queryset = queryset.filter(provider=provider)
+
+            date_from = self.filter_form.get_date_from_datetime()
+            if date_from:
+                queryset = queryset.filter(created_at__gte=date_from)
+
+            date_to = self.filter_form.get_date_to_datetime()
+            if date_to:
+                queryset = queryset.filter(created_at__lte=date_to)
+
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['filter_form'] = getattr(self, 'filter_form', MessageFilterForm())
         paginator = context.get('paginator')
         page_obj = context.get('page_obj')
         if paginator and page_obj:

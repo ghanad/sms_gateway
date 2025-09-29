@@ -19,6 +19,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from messaging.forms import MessageFilterForm
 from messaging.models import Message, MessageStatus, MessageAttemptLog, AttemptStatus
 from messaging.tasks import (
     process_outbound_sms,
@@ -195,11 +196,19 @@ class AdminMessageListViewTests(TestCase):
         self.staff = User.objects.create_user("admin", password="pass", is_staff=True)
         self.user = User.objects.create_user("user", password="pass")
         self.provider = SmsProvider.objects.create(
-            name="Provider", 
-            slug="provider", 
-            send_url="http://example.com/send", 
-            balance_url="http://example.com/balance", 
-            default_sender="100", 
+            name="Provider",
+            slug="provider",
+            send_url="http://example.com/send",
+            balance_url="http://example.com/balance",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+        )
+        self.other_provider = SmsProvider.objects.create(
+            name="Provider B",
+            slug="provider-b",
+            send_url="http://example.com/send-b",
+            balance_url="http://example.com/balance-b",
+            default_sender="200",
             auth_type=AuthType.NONE,
         )
 
@@ -236,6 +245,97 @@ class AdminMessageListViewTests(TestCase):
         response_page_3 = self.client.get(url, {"page": 3})
         self.assertEqual(len(response_page_3.context["message_list"]), 10)
         self.assertContains(response_page_3, "?page=2")
+
+    def test_filter_form_in_context(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+        self.assertIsInstance(response.context["filter_form"], MessageFilterForm)
+
+    def test_filter_by_username(self):
+        msg_staff = Message.objects.create(
+            user=self.staff,
+            tracking_id=uuid.uuid4(),
+            recipient="+1000",
+            text="admin message",
+            provider=self.provider,
+        )
+        msg_user = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="+2000",
+            text="user message",
+            provider=self.provider,
+        )
+
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url, {"username": "adm"})
+
+        message_list = list(response.context["message_list"])
+        self.assertIn(msg_staff, message_list)
+        self.assertNotIn(msg_user, message_list)
+
+    def test_filter_by_status_provider_and_date_range(self):
+        now = timezone.now()
+        target_message = Message.objects.create(
+            user=self.staff,
+            tracking_id=uuid.uuid4(),
+            recipient="+3000",
+            text="delivered message",
+            provider=self.provider,
+            status=MessageStatus.DELIVERED,
+        )
+        Message.objects.filter(pk=target_message.pk).update(created_at=now - timedelta(days=1))
+        target_message.refresh_from_db()
+
+        wrong_status = Message.objects.create(
+            user=self.staff,
+            tracking_id=uuid.uuid4(),
+            recipient="+3001",
+            text="wrong status",
+            provider=self.provider,
+            status=MessageStatus.FAILED,
+        )
+        Message.objects.filter(pk=wrong_status.pk).update(created_at=now - timedelta(days=1))
+
+        wrong_provider = Message.objects.create(
+            user=self.staff,
+            tracking_id=uuid.uuid4(),
+            recipient="+3002",
+            text="wrong provider",
+            provider=self.other_provider,
+            status=MessageStatus.DELIVERED,
+        )
+        Message.objects.filter(pk=wrong_provider.pk).update(created_at=now - timedelta(days=1))
+
+        outside_range = Message.objects.create(
+            user=self.staff,
+            tracking_id=uuid.uuid4(),
+            recipient="+3003",
+            text="outside range",
+            provider=self.provider,
+            status=MessageStatus.DELIVERED,
+        )
+        Message.objects.filter(pk=outside_range.pk).update(created_at=now - timedelta(days=10))
+
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(
+            url,
+            {
+                "status": MessageStatus.DELIVERED,
+                "provider": str(self.provider.pk),
+                "date_from": (now - timedelta(days=2)).date().isoformat(),
+                "date_to": now.date().isoformat(),
+            },
+        )
+
+        message_list = list(response.context["message_list"])
+        self.assertIn(target_message, message_list)
+        self.assertNotIn(wrong_status, message_list)
+        self.assertNotIn(wrong_provider, message_list)
+        self.assertNotIn(outside_range, message_list)
 
 
 class ProcessOutboundSmsTaskTests(TestCase):
