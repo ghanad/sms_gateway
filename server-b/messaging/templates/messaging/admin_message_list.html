@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
-{% load pagination_tags %}
+{% load pagination_tags messaging_currency %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
@@ -65,6 +65,7 @@
                             <th>Text</th>
                             <th>Status</th>
                             <th>Provider</th>
+                            <th>Cost (IRT)</th>
                             <th>Date Sent</th>
                         </tr>
                     </thead>
@@ -81,13 +82,14 @@
                                 {% endif %}
                             </td>
                             <td>{{ message.provider.name }}</td>
+                            <td>{{ message.cost|rial_to_toman|default:"N/A" }}</td>
                             {% with timestamp=message.delivered_at|default:message.sent_at|default:message.created_at %}
                                 <td class="utc-time" data-utc="{{ timestamp|date:'c' }}"></td>
                             {% endwith %}
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6">No messages found.</td>
+                            <td colspan="7">No messages found.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

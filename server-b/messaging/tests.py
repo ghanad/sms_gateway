@@ -1148,6 +1148,28 @@ class AdminMessageListViewTests(TestCase):
         detail_url = reverse("messaging:admin_message_detail", args=[self.message.tracking_id])
         self.assertContains(response, detail_url)
 
+    def test_cost_column_displays_toman_amount(self):
+        self.message.cost = Decimal("25000")
+        self.message.save(update_fields=["cost"])
+
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+
+        self.assertContains(response, "<th>Cost (IRT)</th>", html=True)
+        self.assertContains(response, "<td>2500</td>", html=True)
+
+    def test_cost_column_shows_na_when_unavailable(self):
+        self.message.cost = None
+        self.message.save(update_fields=["cost"])
+
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+
+        self.assertContains(response, "<th>Cost (IRT)</th>", html=True)
+        self.assertContains(response, "<td>N/A</td>", html=True)
+
     def test_status_pill_and_timestamp_use_delivery_information(self):
         delivered_at = timezone.now().replace(microsecond=0)
         sent_at = delivered_at - timedelta(minutes=10)
