@@ -71,7 +71,7 @@ SMS_PROVIDER_BALANCE_GAUGE: Final[Gauge] = Gauge(
     "sms_provider_balance_gauge",
     "Last reported account balance for each SMS provider.",
     labelnames=("provider",),
-    multiprocess_mode="livesum",
+    multiprocess_mode="max",
 )
 
 
