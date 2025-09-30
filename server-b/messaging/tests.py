@@ -3,6 +3,7 @@ import uuid
 import os
 from datetime import timedelta
 from decimal import Decimal
+from urllib.parse import parse_qs, urlparse
 
 import django
 import pika
@@ -19,6 +20,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from messaging.forms import MessageFilterForm
 from messaging.models import Message, MessageStatus, MessageAttemptLog, AttemptStatus
 from messaging.tasks import (
     process_outbound_sms,
@@ -88,6 +90,35 @@ class MessageModelTests(TestCase):
         msg.status = "UNMAPPED"
         msg.save(update_fields=["status"])
         self.assertEqual(msg.status_pill_class, "pill--on")
+
+
+class MessageFilterFormRenderingTests(TestCase):
+    def test_widgets_have_consistent_styling(self):
+        sample = User.objects.create_user(
+            "alice",
+            password="pass",
+            first_name="Alice",
+            last_name="Anderson",
+        )
+        form = MessageFilterForm()
+
+        self.assertEqual(form.fields["user"].widget.attrs.get("class"), "input")
+        self.assertEqual(form.fields["user"].empty_label, "All users")
+        self.assertEqual(
+            form.fields["user"].label_from_instance(sample),
+            "Alice Anderson (alice)",
+        )
+
+        self.assertEqual(form.fields["status"].widget.attrs.get("class"), "input")
+        self.assertEqual(form.fields["status"].choices[0], ("", "All statuses"))
+
+        self.assertEqual(form.fields["provider"].widget.attrs.get("class"), "input")
+        self.assertEqual(form.fields["provider"].empty_label, "All providers")
+
+        self.assertEqual(getattr(form.fields["date_from"].widget, "input_type", None), "date")
+        self.assertEqual(form.fields["date_from"].widget.attrs.get("class"), "input")
+        self.assertEqual(getattr(form.fields["date_to"].widget, "input_type", None), "date")
+        self.assertEqual(form.fields["date_to"].widget.attrs.get("class"), "input")
 
 
 class UserMessageListViewTests(TestCase):
@@ -195,11 +226,19 @@ class AdminMessageListViewTests(TestCase):
         self.staff = User.objects.create_user("admin", password="pass", is_staff=True)
         self.user = User.objects.create_user("user", password="pass")
         self.provider = SmsProvider.objects.create(
-            name="Provider", 
-            slug="provider", 
-            send_url="http://example.com/send", 
-            balance_url="http://example.com/balance", 
-            default_sender="100", 
+            name="Provider",
+            slug="provider",
+            send_url="http://example.com/send",
+            balance_url="http://example.com/balance",
+            default_sender="100",
+            auth_type=AuthType.NONE,
+        )
+        self.other_provider = SmsProvider.objects.create(
+            name="Provider B",
+            slug="provider-b",
+            send_url="http://example.com/send-b",
+            balance_url="http://example.com/balance-b",
+            default_sender="200",
             auth_type=AuthType.NONE,
         )
 
@@ -236,6 +275,162 @@ class AdminMessageListViewTests(TestCase):
         response_page_3 = self.client.get(url, {"page": 3})
         self.assertEqual(len(response_page_3.context["message_list"]), 10)
         self.assertContains(response_page_3, "?page=2")
+
+    def test_filter_form_in_context(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+        self.assertIsInstance(response.context["filter_form"], MessageFilterForm)
+
+    def test_filter_by_user(self):
+        msg_staff = Message.objects.create(
+            user=self.staff,
+            tracking_id=uuid.uuid4(),
+            recipient="+1000",
+            text="admin message",
+            provider=self.provider,
+        )
+        msg_user = Message.objects.create(
+            user=self.user,
+            tracking_id=uuid.uuid4(),
+            recipient="+2000",
+            text="user message",
+            provider=self.provider,
+        )
+
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url, {"user": str(self.staff.pk)})
+
+        message_list = list(response.context["message_list"])
+        self.assertIn(msg_staff, message_list)
+        self.assertNotIn(msg_user, message_list)
+
+    def test_filter_by_status_provider_and_date_range(self):
+        now = timezone.now()
+        target_message = Message.objects.create(
+            user=self.staff,
+            tracking_id=uuid.uuid4(),
+            recipient="+3000",
+            text="delivered message",
+            provider=self.provider,
+            status=MessageStatus.DELIVERED,
+        )
+        Message.objects.filter(pk=target_message.pk).update(created_at=now - timedelta(days=1))
+        target_message.refresh_from_db()
+
+        wrong_status = Message.objects.create(
+            user=self.staff,
+            tracking_id=uuid.uuid4(),
+            recipient="+3001",
+            text="wrong status",
+            provider=self.provider,
+            status=MessageStatus.FAILED,
+        )
+        Message.objects.filter(pk=wrong_status.pk).update(created_at=now - timedelta(days=1))
+
+        wrong_provider = Message.objects.create(
+            user=self.staff,
+            tracking_id=uuid.uuid4(),
+            recipient="+3002",
+            text="wrong provider",
+            provider=self.other_provider,
+            status=MessageStatus.DELIVERED,
+        )
+        Message.objects.filter(pk=wrong_provider.pk).update(created_at=now - timedelta(days=1))
+
+        outside_range = Message.objects.create(
+            user=self.staff,
+            tracking_id=uuid.uuid4(),
+            recipient="+3003",
+            text="outside range",
+            provider=self.provider,
+            status=MessageStatus.DELIVERED,
+        )
+        Message.objects.filter(pk=outside_range.pk).update(created_at=now - timedelta(days=10))
+
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(
+            url,
+            {
+                "status": MessageStatus.DELIVERED,
+                "provider": str(self.provider.pk),
+                "date_from": (now - timedelta(days=2)).date().isoformat(),
+                "date_to": now.date().isoformat(),
+            },
+        )
+
+        message_list = list(response.context["message_list"])
+        self.assertIn(target_message, message_list)
+        self.assertNotIn(wrong_status, message_list)
+        self.assertNotIn(wrong_provider, message_list)
+        self.assertNotIn(outside_range, message_list)
+
+    def test_filter_panel_closed_by_default(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+
+        self.assertFalse(response.context["filter_panel_open"])
+        self.assertEqual(response.context["active_filter_count"], 0)
+        self.assertEqual(response.context["active_filters"], {})
+
+    def test_filter_panel_reports_active_filters(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url, {"user": str(self.staff.pk)})
+
+        self.assertTrue(response.context["filter_panel_open"])
+        self.assertEqual(response.context["active_filter_count"], 1)
+        self.assertEqual(response.context["active_filters"]["user"], self.staff)
+        self.assertEqual(response.context["active_filter_user_display"], "admin")
+        chips = response.context["active_filter_chips"]
+        self.assertEqual(len(chips), 1)
+        self.assertEqual(chips[0]["field"], "user")
+        self.assertIn("remove_url", chips[0])
+
+    def test_filter_panel_opens_when_form_has_errors(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url, {"date_from": "2024-13-01"})
+
+        self.assertTrue(response.context["filter_panel_open"])
+        self.assertTrue(response.context["filter_form"].errors)
+
+    def test_active_filter_chips_provide_single_filter_removal_links(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        params = {
+            "user": str(self.staff.pk),
+            "status": MessageStatus.DELIVERED,
+            "provider": str(self.provider.pk),
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "page": 1,
+        }
+        response = self.client.get(url, params)
+
+        chips = {chip["field"]: chip for chip in response.context["active_filter_chips"]}
+
+        self.assertEqual(set(chips.keys()), {"user", "status", "provider", "date_from", "date_to"})
+
+        user_chip = chips["user"]
+        parsed_user = urlparse(user_chip["remove_url"])
+        user_query = parse_qs(parsed_user.query)
+        self.assertNotIn("user", user_query)
+        self.assertEqual(user_query.get("status"), [MessageStatus.DELIVERED])
+        self.assertEqual(user_query.get("provider"), [str(self.provider.pk)])
+        self.assertEqual(user_query.get("date_from"), ["2024-01-01"])
+        self.assertEqual(user_query.get("date_to"), ["2024-01-31"])
+        self.assertNotIn("page", user_query)
+
+        status_chip = chips["status"]
+        parsed_status = urlparse(status_chip["remove_url"])
+        status_query = parse_qs(parsed_status.query)
+        self.assertNotIn("status", status_query)
+        self.assertEqual(status_query.get("user"), [str(self.staff.pk)])
+
 
 
 class ProcessOutboundSmsTaskTests(TestCase):
@@ -1156,8 +1351,8 @@ class AdminMessageListViewTests(TestCase):
         url = reverse("messaging:admin_messages_list")
         response = self.client.get(url)
 
-        self.assertContains(response, "<th>Cost (IRT)</th>", html=True)
-        self.assertContains(response, "<td>2500</td>", html=True)
+        self.assertContains(response, '<th class="text-right">Cost (IRT)</th>', html=True)
+        self.assertContains(response, '<td class="text-right">2500</td>', html=True)
 
     def test_cost_column_shows_na_when_unavailable(self):
         self.message.cost = None
@@ -1167,8 +1362,8 @@ class AdminMessageListViewTests(TestCase):
         url = reverse("messaging:admin_messages_list")
         response = self.client.get(url)
 
-        self.assertContains(response, "<th>Cost (IRT)</th>", html=True)
-        self.assertContains(response, "<td>N/A</td>", html=True)
+        self.assertContains(response, '<th class="text-right">Cost (IRT)</th>', html=True)
+        self.assertContains(response, '<td class="text-right">N/A</td>', html=True)
 
     def test_status_pill_and_timestamp_use_delivery_information(self):
         delivered_at = timezone.now().replace(microsecond=0)
