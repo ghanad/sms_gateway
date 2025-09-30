@@ -46,20 +46,28 @@
             background-color: var(--bg2);
         }
         .filters-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 1.25rem;
             padding: 1.5rem;
             border: 1px solid rgba(15, 23, 42, 0.06);
             border-radius: calc(var(--radius) + 6px);
             background: linear-gradient(145deg, rgba(255,255,255,0.88), rgba(255,255,255,0.75));
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 12px 32px rgba(15, 23, 42, 0.12);
         }
-        .filters-panel__header {
+        .filters-panel__summary {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
             gap: 1rem;
+            cursor: pointer;
+            list-style: none;
+            margin: 0;
+        }
+        .filters-panel__summary::-webkit-details-marker {
+            display: none;
+        }
+        .filters-panel__summary-text {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
         }
         .filters-panel__title {
             margin: 0;
@@ -81,6 +89,51 @@
             background: rgba(15, 23, 42, 0.04);
             font-size: 0.85rem;
             color: var(--muted);
+        }
+        .filters-panel__summary-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .filters-panel__summary-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.08);
+            color: var(--ring);
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        .filters-panel__toggle-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--muted);
+            transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+        .filters-panel__toggle-icon svg {
+            display: block;
+        }
+        .filters-panel[open] .filters-panel__toggle-icon {
+            transform: rotate(180deg);
+            background: var(--ring);
+            color: #fff;
+            border-color: var(--ring);
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.15);
+        }
+        .filters-panel__content {
+            margin-top: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
         }
         .filters-panel__form {
             display: flex;
@@ -206,9 +259,16 @@
             .filters-panel {
                 padding: 1.25rem;
             }
-            .filters-panel__header {
+            .filters-panel__summary {
                 flex-direction: column;
                 align-items: flex-start;
+                gap: 0.75rem;
+            }
+            .filters-panel__summary-meta {
+                width: 100%;
+                flex-wrap: wrap;
+                justify-content: flex-start;
+                gap: 0.5rem;
             }
             .filters-panel__actions {
                 width: 100%;
@@ -238,97 +298,103 @@
     <!-- Card -->
     <section class="card">
         <div class="card__body">
-            <div class="filters-panel">
-                <div class="filters-panel__header">
-                    <div>
+            <details class="filters-panel"{% if filter_panel_open %} open{% endif %}>
+                <summary class="filters-panel__summary">
+                    <div class="filters-panel__summary-text">
                         <h2 class="filters-panel__title">Filter messages</h2>
                         <p class="filters-panel__subtitle">Refine the inbox by username, delivery status, provider, or a custom date range.</p>
                     </div>
-                    {% if page_obj %}
-                        <span class="filters-panel__result-count">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 3C7.031 3 3 7.031 3 12C3 16.969 7.031 21 12 21C16.969 21 21 16.969 21 12C21 7.031 16.969 3 12 3ZM12 19.5C7.863 19.5 4.5 16.137 4.5 12C4.5 7.863 7.863 4.5 12 4.5C16.137 4.5 19.5 7.863 19.5 12C19.5 16.137 16.137 19.5 12 19.5ZM16.219 9.469L11 14.688L7.781 11.469L8.844 10.406L11 12.563L15.156 8.406L16.219 9.469Z" fill="currentColor"/></svg>
-                            {{ page_obj.paginator.count }} messages
+                    <div class="filters-panel__summary-meta">
+                        {% if active_filter_count %}
+                            <span class="filters-panel__summary-badge">{{ active_filter_count }} active</span>
+                        {% endif %}
+                        {% if page_obj %}
+                            <span class="filters-panel__result-count">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 3C7.031 3 3 7.031 3 12C3 16.969 7.031 21 12 21C16.969 21 21 16.969 21 12C21 7.031 16.969 3 12 3ZM12 19.5C7.863 19.5 4.5 16.137 4.5 12C4.5 7.863 7.863 4.5 12 4.5C16.137 4.5 19.5 7.863 19.5 12C19.5 16.137 16.137 19.5 12 19.5ZM16.219 9.469L11 14.688L7.781 11.469L8.844 10.406L11 12.563L15.156 8.406L16.219 9.469Z" fill="currentColor"/></svg>
+                                {{ page_obj.paginator.count }} messages
+                            </span>
+                        {% endif %}
+                        <span class="filters-panel__toggle-icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 8L18 14H6L12 8Z" fill="currentColor"/></svg>
                         </span>
-                    {% endif %}
-                </div>
-                <form method="get" class="filters-panel__form" novalidate>
-                    {% if filter_form.non_field_errors %}
-                        <div class="filters-panel__errors">{{ filter_form.non_field_errors }}</div>
-                    {% endif %}
-                    <div class="filters-panel__fields">
-                        <div class="filters-panel__field filters-panel__field--span-4">
-                            {{ filter_form.username.label_tag }}
-                            {{ filter_form.username }}
-                            {% if filter_form.username.errors %}
-                                <div class="filters-panel__errors">{{ filter_form.username.errors|join:', ' }}</div>
-                            {% endif %}
-                        </div>
-                        <div class="filters-panel__field filters-panel__field--span-4">
-                            {{ filter_form.status.label_tag }}
-                            {{ filter_form.status }}
-                            {% if filter_form.status.errors %}
-                                <div class="filters-panel__errors">{{ filter_form.status.errors|join:', ' }}</div>
-                            {% endif %}
-                        </div>
-                        <div class="filters-panel__field filters-panel__field--span-4">
-                            {{ filter_form.provider.label_tag }}
-                            {{ filter_form.provider }}
-                            {% if filter_form.provider.errors %}
-                                <div class="filters-panel__errors">{{ filter_form.provider.errors|join:', ' }}</div>
-                            {% endif %}
-                        </div>
-                        <div class="filters-panel__field filters-panel__field--span-6">
-                            {{ filter_form.date_from.label_tag }}
-                            {{ filter_form.date_from }}
-                            {% if filter_form.date_from.errors %}
-                                <div class="filters-panel__errors">{{ filter_form.date_from.errors|join:', ' }}</div>
-                            {% endif %}
-                        </div>
-                        <div class="filters-panel__field filters-panel__field--span-6">
-                            {{ filter_form.date_to.label_tag }}
-                            {{ filter_form.date_to }}
-                            {% if filter_form.date_to.errors %}
-                                <div class="filters-panel__errors">{{ filter_form.date_to.errors|join:', ' }}</div>
-                            {% endif %}
-                        </div>
                     </div>
-                    <div class="filters-panel__actions">
-                        <button type="submit" class="btn btn-primary">Filter</button>
-                        <a href="{% url 'messaging:admin_messages_list' %}" class="btn btn-ghost">Clear</a>
-                    </div>
-                </form>
-                {% if filter_form.is_bound and filter_form.is_valid %}
-                    {% with data=filter_form.cleaned_data %}
-                        {% if data.username or data.status or data.provider or data.date_from or data.date_to %}
-                            <div class="filters-panel__active">
-                                <span class="filters-panel__active-label">Active filters:</span>
-                                {% if data.username %}
-                                    <span class="filters-panel__chip">User: <strong>{{ data.username }}</strong></span>
-                                {% endif %}
-                                {% if data.status %}
-                                    <span class="filters-panel__chip">
-                                        Status:
-                                        <strong>
-                                            {% for value, label in filter_form.fields.status.choices %}
-                                                {% if value == data.status %}{{ label }}{% endif %}
-                                            {% endfor %}
-                                        </strong>
-                                    </span>
-                                {% endif %}
-                                {% if data.provider %}
-                                    <span class="filters-panel__chip">Provider: <strong>{{ data.provider.name }}</strong></span>
-                                {% endif %}
-                                {% if data.date_from %}
-                                    <span class="filters-panel__chip">From: <strong>{{ data.date_from|date:'M j, Y' }}</strong></span>
-                                {% endif %}
-                                {% if data.date_to %}
-                                    <span class="filters-panel__chip">To: <strong>{{ data.date_to|date:'M j, Y' }}</strong></span>
+                </summary>
+                <div class="filters-panel__content">
+                    <form method="get" class="filters-panel__form" novalidate>
+                        {% if filter_form.non_field_errors %}
+                            <div class="filters-panel__errors">{{ filter_form.non_field_errors }}</div>
+                        {% endif %}
+                        <div class="filters-panel__fields">
+                            <div class="filters-panel__field filters-panel__field--span-4">
+                                {{ filter_form.username.label_tag }}
+                                {{ filter_form.username }}
+                                {% if filter_form.username.errors %}
+                                    <div class="filters-panel__errors">{{ filter_form.username.errors|join:', ' }}</div>
                                 {% endif %}
                             </div>
-                        {% endif %}
-                    {% endwith %}
-                {% endif %}
-            </div>
+                            <div class="filters-panel__field filters-panel__field--span-4">
+                                {{ filter_form.status.label_tag }}
+                                {{ filter_form.status }}
+                                {% if filter_form.status.errors %}
+                                    <div class="filters-panel__errors">{{ filter_form.status.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="filters-panel__field filters-panel__field--span-4">
+                                {{ filter_form.provider.label_tag }}
+                                {{ filter_form.provider }}
+                                {% if filter_form.provider.errors %}
+                                    <div class="filters-panel__errors">{{ filter_form.provider.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="filters-panel__field filters-panel__field--span-6">
+                                {{ filter_form.date_from.label_tag }}
+                                {{ filter_form.date_from }}
+                                {% if filter_form.date_from.errors %}
+                                    <div class="filters-panel__errors">{{ filter_form.date_from.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="filters-panel__field filters-panel__field--span-6">
+                                {{ filter_form.date_to.label_tag }}
+                                {{ filter_form.date_to }}
+                                {% if filter_form.date_to.errors %}
+                                    <div class="filters-panel__errors">{{ filter_form.date_to.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="filters-panel__actions">
+                            <button type="submit" class="btn btn-primary">Filter</button>
+                            <a href="{% url 'messaging:admin_messages_list' %}" class="btn btn-ghost">Clear</a>
+                        </div>
+                    </form>
+                    {% if active_filters %}
+                        <div class="filters-panel__active">
+                            <span class="filters-panel__active-label">Active filters:</span>
+                            {% if active_filters.username %}
+                                <span class="filters-panel__chip">User: <strong>{{ active_filters.username }}</strong></span>
+                            {% endif %}
+                            {% if active_filters.status %}
+                                <span class="filters-panel__chip">
+                                    Status:
+                                    <strong>
+                                        {% for value, label in filter_form.fields.status.choices %}
+                                            {% if value == active_filters.status %}{{ label }}{% endif %}
+                                        {% endfor %}
+                                    </strong>
+                                </span>
+                            {% endif %}
+                            {% if active_filters.provider %}
+                                <span class="filters-panel__chip">Provider: <strong>{{ active_filters.provider.name }}</strong></span>
+                            {% endif %}
+                            {% if active_filters.date_from %}
+                                <span class="filters-panel__chip">From: <strong>{{ active_filters.date_from|date:'M j, Y' }}</strong></span>
+                            {% endif %}
+                            {% if active_filters.date_to %}
+                                <span class="filters-panel__chip">To: <strong>{{ active_filters.date_to|date:'M j, Y' }}</strong></span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </details>
 
             {% if page_obj %}
             <div class="table-meta">

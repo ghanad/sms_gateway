@@ -356,6 +356,32 @@ class AdminMessageListViewTests(TestCase):
         self.assertNotIn(wrong_provider, message_list)
         self.assertNotIn(outside_range, message_list)
 
+    def test_filter_panel_closed_by_default(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url)
+
+        self.assertFalse(response.context["filter_panel_open"])
+        self.assertEqual(response.context["active_filter_count"], 0)
+        self.assertEqual(response.context["active_filters"], {})
+
+    def test_filter_panel_reports_active_filters(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url, {"username": "adm"})
+
+        self.assertTrue(response.context["filter_panel_open"])
+        self.assertEqual(response.context["active_filter_count"], 1)
+        self.assertEqual(response.context["active_filters"]["username"], "adm")
+
+    def test_filter_panel_opens_when_form_has_errors(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        response = self.client.get(url, {"date_from": "2024-13-01"})
+
+        self.assertTrue(response.context["filter_panel_open"])
+        self.assertTrue(response.context["filter_form"].errors)
+
 
 class ProcessOutboundSmsTaskTests(TestCase):
     def setUp(self):

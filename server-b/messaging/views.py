@@ -75,7 +75,13 @@ class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['filter_form'] = getattr(self, 'filter_form', MessageFilterForm())
+        filter_form = getattr(self, 'filter_form', MessageFilterForm(self.request.GET or None))
+        active_filters = filter_form.get_active_filters()
+
+        context['filter_form'] = filter_form
+        context['active_filters'] = active_filters
+        context['active_filter_count'] = len(active_filters)
+        context['filter_panel_open'] = bool(active_filters or filter_form.errors)
         paginator = context.get('paginator')
         page_obj = context.get('page_obj')
         if paginator and page_obj:
