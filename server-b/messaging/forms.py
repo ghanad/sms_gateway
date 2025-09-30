@@ -8,28 +8,70 @@ from providers.models import SmsProvider
 from .models import MessageStatus
 
 
+class DatePickerInput(forms.DateInput):
+    input_type = "date"
+
+
 class MessageFilterForm(forms.Form):
-    username = forms.CharField(required=False, label="Username")
+    username = forms.CharField(
+        required=False,
+        label="Username",
+        widget=forms.TextInput(
+            attrs={
+                "class": "input",
+                "placeholder": "Search username",
+                "autocomplete": "off",
+            }
+        ),
+    )
     status = forms.ChoiceField(
         required=False,
-        choices=[("", "---------")] + list(MessageStatus.choices),
+        choices=list(MessageStatus.choices),
         label="Status",
+        widget=forms.Select(
+            attrs={
+                "class": "input",
+            }
+        ),
     )
     provider = forms.ModelChoiceField(
         queryset=SmsProvider.objects.all(),
         required=False,
         label="Provider",
+        widget=forms.Select(
+            attrs={
+                "class": "input",
+            }
+        ),
     )
     date_from = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={"type": "date"}),
+        widget=DatePickerInput(
+            attrs={
+                "class": "input",
+                "placeholder": "From",
+            }
+        ),
         label="From date",
     )
     date_to = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={"type": "date"}),
+        widget=DatePickerInput(
+            attrs={
+                "class": "input",
+                "placeholder": "To",
+            }
+        ),
         label="To date",
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["status"].choices = [
+            ("", "All statuses"),
+            *MessageStatus.choices,
+        ]
+        self.fields["provider"].empty_label = "All providers"
 
     def clean_status(self):
         status = self.cleaned_data.get("status")

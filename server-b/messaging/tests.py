@@ -91,6 +91,25 @@ class MessageModelTests(TestCase):
         self.assertEqual(msg.status_pill_class, "pill--on")
 
 
+class MessageFilterFormRenderingTests(TestCase):
+    def test_widgets_have_consistent_styling(self):
+        form = MessageFilterForm()
+
+        self.assertEqual(form.fields["username"].widget.attrs.get("class"), "input")
+        self.assertEqual(form.fields["username"].widget.attrs.get("placeholder"), "Search username")
+
+        self.assertEqual(form.fields["status"].widget.attrs.get("class"), "input")
+        self.assertEqual(form.fields["status"].choices[0], ("", "All statuses"))
+
+        self.assertEqual(form.fields["provider"].widget.attrs.get("class"), "input")
+        self.assertEqual(form.fields["provider"].empty_label, "All providers")
+
+        self.assertEqual(getattr(form.fields["date_from"].widget, "input_type", None), "date")
+        self.assertEqual(form.fields["date_from"].widget.attrs.get("class"), "input")
+        self.assertEqual(getattr(form.fields["date_to"].widget, "input_type", None), "date")
+        self.assertEqual(form.fields["date_to"].widget.attrs.get("class"), "input")
+
+
 class UserMessageListViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("user", password="pass")
@@ -1256,8 +1275,8 @@ class AdminMessageListViewTests(TestCase):
         url = reverse("messaging:admin_messages_list")
         response = self.client.get(url)
 
-        self.assertContains(response, "<th>Cost (IRT)</th>", html=True)
-        self.assertContains(response, "<td>2500</td>", html=True)
+        self.assertContains(response, '<th class="text-right">Cost (IRT)</th>', html=True)
+        self.assertContains(response, '<td class="text-right">2500</td>', html=True)
 
     def test_cost_column_shows_na_when_unavailable(self):
         self.message.cost = None
@@ -1267,8 +1286,8 @@ class AdminMessageListViewTests(TestCase):
         url = reverse("messaging:admin_messages_list")
         response = self.client.get(url)
 
-        self.assertContains(response, "<th>Cost (IRT)</th>", html=True)
-        self.assertContains(response, "<td>N/A</td>", html=True)
+        self.assertContains(response, '<th class="text-right">Cost (IRT)</th>', html=True)
+        self.assertContains(response, '<td class="text-right">N/A</td>', html=True)
 
     def test_status_pill_and_timestamp_use_delivery_information(self):
         delivered_at = timezone.now().replace(microsecond=0)
