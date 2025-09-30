@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load messaging_currency %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
@@ -319,6 +320,7 @@
                                 <th>Total Messages</th>
                                 <th>Successful</th>
                                 <th>Failed</th>
+                                <th>Total Cost (IRT)</th>
                                 <th>Last Sent Date</th>
                                 <th>Last Login</th>
                             </tr>
@@ -330,6 +332,13 @@
                                     <td>{{ user.total_messages|default:0 }}</td>
                                     <td>{{ user.successful_messages|default:0 }}</td>
                                     <td>{{ user.failed_messages|default:0 }}</td>
+                                    <td>
+                                        {% if user.total_cost is not None %}
+                                            IRT {{ user.total_cost|rial_to_toman|default:"N/A" }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {% if user.last_sent %}
                                             {{ user.last_sent|date:"Y-m-d H:i" }}
@@ -347,7 +356,7 @@
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="6" class="empty-state">No users found.</td>
+                                    <td colspan="7" class="empty-state">No users found.</td>
                                 </tr>
                             {% endfor %}
                         </tbody>

@@ -1,6 +1,7 @@
 import json
 import uuid
 from datetime import timedelta
+from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -164,6 +165,7 @@ class UserStatsViewTests(TestCase):
                 recipient="+1234567890",
                 text="Test",
                 status=MessageStatus.SENT_TO_PROVIDER,
+                cost=Decimal("12000"),
             ),
             Message(
                 user=self.alice,
@@ -171,6 +173,7 @@ class UserStatsViewTests(TestCase):
                 recipient="+1234567891",
                 text="Test",
                 status=MessageStatus.DELIVERED,
+                cost=Decimal("18000"),
             ),
             Message(
                 user=self.alice,
@@ -178,6 +181,7 @@ class UserStatsViewTests(TestCase):
                 recipient="+1234567892",
                 text="Test",
                 status=MessageStatus.FAILED,
+                cost=None,
             ),
             Message(
                 user=self.bob,
@@ -185,6 +189,7 @@ class UserStatsViewTests(TestCase):
                 recipient="+1234567893",
                 text="Test",
                 status=MessageStatus.FAILED,
+                cost=Decimal("5000"),
             ),
         ]
 
@@ -205,17 +210,20 @@ class UserStatsViewTests(TestCase):
         self.assertEqual(alice_stats.total_messages, 3)
         self.assertEqual(alice_stats.successful_messages, 2)
         self.assertEqual(alice_stats.failed_messages, 1)
+        self.assertEqual(alice_stats.total_cost, Decimal("30000"))
         self.assertIsNotNone(alice_stats.last_sent)
 
         bob_stats = stats["bob"]
         self.assertEqual(bob_stats.total_messages, 1)
         self.assertEqual(bob_stats.successful_messages, 0)
         self.assertEqual(bob_stats.failed_messages, 1)
+        self.assertEqual(bob_stats.total_cost, Decimal("5000"))
         self.assertIsNotNone(bob_stats.last_sent)
 
         # Staff user has not sent messages, but should still appear.
         admin_stats = stats["admin"]
         self.assertEqual(admin_stats.total_messages, 0)
+        self.assertIsNone(admin_stats.total_cost)
         self.assertIsNone(admin_stats.last_sent)
 
     def test_date_filters_limit_results(self):
@@ -231,11 +239,13 @@ class UserStatsViewTests(TestCase):
         # Alice's messages are outside the filter window; they should not be counted.
         alice_stats = stats["alice"]
         self.assertEqual(alice_stats.total_messages, 0)
+        self.assertIsNone(alice_stats.total_cost)
         self.assertIsNone(alice_stats.last_sent)
 
         # Bob has one message with a timestamp 10 days ago; still outside the window.
         bob_stats = stats["bob"]
         self.assertEqual(bob_stats.total_messages, 0)
+        self.assertIsNone(bob_stats.total_cost)
 
         # Ensure filter values are echoed back in the context.
         self.assertEqual(response.context["filters"], {"from": target_date, "to": target_date})
