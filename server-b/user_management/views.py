@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.views import PasswordChangeView
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime, time
@@ -190,7 +190,7 @@ class UserStatsView(StaffRequiredMixin, TemplateView):
             MessageStatus.DELIVERED,
         ]
 
-        users = (
+        users = list(
             User.objects.all()
             .annotate(
                 total_messages=Count("messages", filter=base_filter),
@@ -207,9 +207,37 @@ class UserStatsView(StaffRequiredMixin, TemplateView):
             .order_by("username")
         )
 
-        context["user_stats"] = users
-        context["filters"] = {
+        filter_values = {
             "from": self.request.GET.get("from", ""),
             "to": self.request.GET.get("to", ""),
         }
+
+        active_filter_chips = []
+        base_url = reverse("user_stats")
+        query_dict = self.request.GET.copy()
+
+        for key, label in (("from", "From"), ("to", "To")):
+            value = filter_values[key]
+            if not value:
+                continue
+
+            chip_query = query_dict.copy()
+            chip_query.pop(key, None)
+            query_string = chip_query.urlencode()
+            remove_url = f"{base_url}?{query_string}" if query_string else base_url
+            active_filter_chips.append(
+                {
+                    "label": label,
+                    "value": value,
+                    "remove_url": remove_url,
+                }
+            )
+
+        context["user_stats"] = users
+        context["filters"] = filter_values
+        context["user_count"] = len(users)
+        context["filter_panel_open"] = any(filter_values.values())
+        context["active_filter_count"] = len(active_filter_chips)
+        context["active_filters"] = bool(active_filter_chips)
+        context["active_filter_chips"] = active_filter_chips
         return context
