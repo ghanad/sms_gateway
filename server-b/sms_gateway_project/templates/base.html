@@ -54,7 +54,15 @@
         <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'messaging:my_messages_list' %}">My Messages</a>
         {% endif %}
         {% if user.is_staff %}
-        <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'messaging:admin_messages_list' %}">Admin Messages</a>
+        <details class="relative">
+            <summary class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 bg-[#f0f2f5] text-[#111418] gap-2 text-sm font-bold leading-normal tracking-[0.015em] min-w-0 px-2.5">
+                Admin
+            </summary>
+            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                <a href="{% url 'messaging:admin_messages_list' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Admin Messages</a>
+                <a href="{% url 'user_stats' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">User Activity Report</a>
+            </div>
+        </details>
         <a class="text-[#111418] text-sm font-bold leading-normal tracking-[0.015em]" href="{% url 'user_list' %}">Users</a>
         {% endif %}
         {% if user.is_authenticated %}
