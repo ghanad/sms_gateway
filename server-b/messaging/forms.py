@@ -1,6 +1,7 @@
 from datetime import datetime, time
 
 from django import forms
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from providers.models import SmsProvider
@@ -8,19 +9,29 @@ from providers.models import SmsProvider
 from .models import MessageStatus
 
 
+User = get_user_model()
+
+
 class DatePickerInput(forms.DateInput):
     input_type = "date"
 
 
+class UserChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        full_name = obj.get_full_name()
+        if full_name:
+            return f"{full_name} ({obj.username})"
+        return obj.username
+
+
 class MessageFilterForm(forms.Form):
-    username = forms.CharField(
+    user = UserChoiceField(
+        queryset=User.objects.none(),
         required=False,
-        label="Username",
-        widget=forms.TextInput(
+        label="User",
+        widget=forms.Select(
             attrs={
                 "class": "input",
-                "placeholder": "Search username",
-                "autocomplete": "off",
             }
         ),
     )
@@ -67,6 +78,8 @@ class MessageFilterForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["user"].queryset = User.objects.order_by("username")
+        self.fields["user"].empty_label = "All users"
         self.fields["status"].choices = [
             ("", "All statuses"),
             *MessageStatus.choices,
@@ -102,7 +115,7 @@ class MessageFilterForm(forms.Form):
             return {}
 
         active = {}
-        for field_name in ["username", "status", "provider", "date_from", "date_to"]:
+        for field_name in ["user", "status", "provider", "date_from", "date_to"]:
             value = self.cleaned_data.get(field_name)
             if value:
                 active[field_name] = value

@@ -302,7 +302,7 @@
                 <summary class="filters-panel__summary">
                     <div class="filters-panel__summary-text">
                         <h2 class="filters-panel__title">Filter messages</h2>
-                        <p class="filters-panel__subtitle">Refine the inbox by username, delivery status, provider, or a custom date range.</p>
+                        <p class="filters-panel__subtitle">Refine the inbox by user, delivery status, provider, or a custom date range.</p>
                     </div>
                     <div class="filters-panel__summary-meta">
                         {% if active_filter_count %}
@@ -326,10 +326,10 @@
                         {% endif %}
                         <div class="filters-panel__fields">
                             <div class="filters-panel__field filters-panel__field--span-4">
-                                {{ filter_form.username.label_tag }}
-                                {{ filter_form.username }}
-                                {% if filter_form.username.errors %}
-                                    <div class="filters-panel__errors">{{ filter_form.username.errors|join:', ' }}</div>
+                                {{ filter_form.user.label_tag }}
+                                {{ filter_form.user }}
+                                {% if filter_form.user.errors %}
+                                    <div class="filters-panel__errors">{{ filter_form.user.errors|join:', ' }}</div>
                                 {% endif %}
                             </div>
                             <div class="filters-panel__field filters-panel__field--span-4">
@@ -369,8 +369,8 @@
                     {% if active_filters %}
                         <div class="filters-panel__active">
                             <span class="filters-panel__active-label">Active filters:</span>
-                            {% if active_filters.username %}
-                                <span class="filters-panel__chip">User: <strong>{{ active_filters.username }}</strong></span>
+                            {% if active_filters.user %}
+                                <span class="filters-panel__chip">User: <strong>{{ active_filter_user_display }}</strong></span>
                             {% endif %}
                             {% if active_filters.status %}
                                 <span class="filters-panel__chip">

@@ -93,10 +93,20 @@ class MessageModelTests(TestCase):
 
 class MessageFilterFormRenderingTests(TestCase):
     def test_widgets_have_consistent_styling(self):
+        sample = User.objects.create_user(
+            "alice",
+            password="pass",
+            first_name="Alice",
+            last_name="Anderson",
+        )
         form = MessageFilterForm()
 
-        self.assertEqual(form.fields["username"].widget.attrs.get("class"), "input")
-        self.assertEqual(form.fields["username"].widget.attrs.get("placeholder"), "Search username")
+        self.assertEqual(form.fields["user"].widget.attrs.get("class"), "input")
+        self.assertEqual(form.fields["user"].empty_label, "All users")
+        self.assertEqual(
+            form.fields["user"].label_from_instance(sample),
+            "Alice Anderson (alice)",
+        )
 
         self.assertEqual(form.fields["status"].widget.attrs.get("class"), "input")
         self.assertEqual(form.fields["status"].choices[0], ("", "All statuses"))
@@ -271,7 +281,7 @@ class AdminMessageListViewTests(TestCase):
         response = self.client.get(url)
         self.assertIsInstance(response.context["filter_form"], MessageFilterForm)
 
-    def test_filter_by_username(self):
+    def test_filter_by_user(self):
         msg_staff = Message.objects.create(
             user=self.staff,
             tracking_id=uuid.uuid4(),
@@ -289,7 +299,7 @@ class AdminMessageListViewTests(TestCase):
 
         self.client.login(username="admin", password="pass")
         url = reverse("messaging:admin_messages_list")
-        response = self.client.get(url, {"username": "adm"})
+        response = self.client.get(url, {"user": str(self.staff.pk)})
 
         message_list = list(response.context["message_list"])
         self.assertIn(msg_staff, message_list)
@@ -368,11 +378,12 @@ class AdminMessageListViewTests(TestCase):
     def test_filter_panel_reports_active_filters(self):
         self.client.login(username="admin", password="pass")
         url = reverse("messaging:admin_messages_list")
-        response = self.client.get(url, {"username": "adm"})
+        response = self.client.get(url, {"user": str(self.staff.pk)})
 
         self.assertTrue(response.context["filter_panel_open"])
         self.assertEqual(response.context["active_filter_count"], 1)
-        self.assertEqual(response.context["active_filters"]["username"], "adm")
+        self.assertEqual(response.context["active_filters"]["user"], self.staff)
+        self.assertEqual(response.context["active_filter_user_display"], "admin")
 
     def test_filter_panel_opens_when_form_has_errors(self):
         self.client.login(username="admin", password="pass")

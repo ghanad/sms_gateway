@@ -51,9 +51,9 @@ class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         if self.filter_form.is_valid():
             data = self.filter_form.cleaned_data
 
-            username = data.get('username')
-            if username:
-                queryset = queryset.filter(user__username__icontains=username)
+            user = data.get('user')
+            if user:
+                queryset = queryset.filter(user=user)
 
             status = data.get('status')
             if status:
@@ -82,6 +82,11 @@ class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         context['active_filters'] = active_filters
         context['active_filter_count'] = len(active_filters)
         context['filter_panel_open'] = bool(active_filters or filter_form.errors)
+        user_filter_display = None
+        user_value = active_filters.get('user') if active_filters else None
+        if user_value:
+            user_filter_display = filter_form.fields['user'].label_from_instance(user_value)
+        context['active_filter_user_display'] = user_filter_display
         paginator = context.get('paginator')
         page_obj = context.get('page_obj')
         if paginator and page_obj:
