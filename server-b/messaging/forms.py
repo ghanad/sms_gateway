@@ -1,5 +1,3 @@
-from datetime import datetime, time
-
 from django import forms
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -12,8 +10,8 @@ from .models import MessageStatus
 User = get_user_model()
 
 
-class DatePickerInput(forms.DateInput):
-    input_type = "date"
+class DateTimePickerInput(forms.DateTimeInput):
+    input_type = "datetime-local"
 
 
 class UserChoiceField(forms.ModelChoiceField):
@@ -55,25 +53,29 @@ class MessageFilterForm(forms.Form):
             }
         ),
     )
-    date_from = forms.DateField(
+    date_from = forms.DateTimeField(
         required=False,
-        widget=DatePickerInput(
+        input_formats=["%Y-%m-%dT%H:%M"],
+        widget=DateTimePickerInput(
             attrs={
                 "class": "input",
                 "placeholder": "From",
+                "step": 60,
             }
         ),
-        label="From date",
+        label="From date & time",
     )
-    date_to = forms.DateField(
+    date_to = forms.DateTimeField(
         required=False,
-        widget=DatePickerInput(
+        input_formats=["%Y-%m-%dT%H:%M"],
+        widget=DateTimePickerInput(
             attrs={
                 "class": "input",
                 "placeholder": "To",
+                "step": 60,
             }
         ),
-        label="To date",
+        label="To date & time",
     )
 
     def __init__(self, *args, **kwargs):
@@ -94,19 +96,17 @@ class MessageFilterForm(forms.Form):
         date_from = self.cleaned_data.get("date_from")
         if not date_from:
             return None
-        start = datetime.combine(date_from, time.min)
-        if timezone.is_naive(start):
-            start = timezone.make_aware(start, timezone.get_current_timezone())
-        return start
+        if timezone.is_naive(date_from):
+            date_from = timezone.make_aware(date_from, timezone.get_current_timezone())
+        return date_from
 
     def get_date_to_datetime(self):
         date_to = self.cleaned_data.get("date_to")
         if not date_to:
             return None
-        end = datetime.combine(date_to, time.max)
-        if timezone.is_naive(end):
-            end = timezone.make_aware(end, timezone.get_current_timezone())
-        return end
+        if timezone.is_naive(date_to):
+            date_to = timezone.make_aware(date_to, timezone.get_current_timezone())
+        return date_to
 
     def get_active_filters(self):
         if not self.is_bound:

@@ -141,7 +141,7 @@ class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 {
                     'field': 'date_from',
                     'label': filter_form.fields['date_from'].label,
-                    'value': dateformat.format(date_from_value, 'M j, Y'),
+                    'value': dateformat.format(date_from_value, 'M j, Y H:i'),
                     'remove_url': build_remove_url('date_from'),
                 }
             )
@@ -152,7 +152,7 @@ class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 {
                     'field': 'date_to',
                     'label': filter_form.fields['date_to'].label,
-                    'value': dateformat.format(date_to_value, 'M j, Y'),
+                    'value': dateformat.format(date_to_value, 'M j, Y H:i'),
                     'remove_url': build_remove_url('date_to'),
                 }
             )

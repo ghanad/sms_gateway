@@ -115,9 +115,15 @@ class MessageFilterFormRenderingTests(TestCase):
         self.assertEqual(form.fields["provider"].widget.attrs.get("class"), "input")
         self.assertEqual(form.fields["provider"].empty_label, "All providers")
 
-        self.assertEqual(getattr(form.fields["date_from"].widget, "input_type", None), "date")
+        self.assertEqual(
+            getattr(form.fields["date_from"].widget, "input_type", None),
+            "datetime-local",
+        )
         self.assertEqual(form.fields["date_from"].widget.attrs.get("class"), "input")
-        self.assertEqual(getattr(form.fields["date_to"].widget, "input_type", None), "date")
+        self.assertEqual(
+            getattr(form.fields["date_to"].widget, "input_type", None),
+            "datetime-local",
+        )
         self.assertEqual(form.fields["date_to"].widget.attrs.get("class"), "input")
 
 
@@ -308,6 +314,9 @@ class AdminMessageListViewTests(TestCase):
 
     def test_filter_by_status_provider_and_date_range(self):
         now = timezone.now()
+        local_now = timezone.localtime(now)
+        date_from_param = timezone.localtime(now - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M")
+        date_to_param = local_now.strftime("%Y-%m-%dT%H:%M")
         target_message = Message.objects.create(
             user=self.staff,
             tracking_id=uuid.uuid4(),
@@ -356,8 +365,8 @@ class AdminMessageListViewTests(TestCase):
             {
                 "status": MessageStatus.DELIVERED,
                 "provider": str(self.provider.pk),
-                "date_from": (now - timedelta(days=2)).date().isoformat(),
-                "date_to": now.date().isoformat(),
+                "date_from": date_from_param,
+                "date_to": date_to_param,
             },
         )
 
@@ -393,7 +402,7 @@ class AdminMessageListViewTests(TestCase):
     def test_filter_panel_opens_when_form_has_errors(self):
         self.client.login(username="admin", password="pass")
         url = reverse("messaging:admin_messages_list")
-        response = self.client.get(url, {"date_from": "2024-13-01"})
+        response = self.client.get(url, {"date_from": "2024-13-01T10:00"})
 
         self.assertTrue(response.context["filter_panel_open"])
         self.assertTrue(response.context["filter_form"].errors)
@@ -405,8 +414,8 @@ class AdminMessageListViewTests(TestCase):
             "user": str(self.staff.pk),
             "status": MessageStatus.DELIVERED,
             "provider": str(self.provider.pk),
-            "date_from": "2024-01-01",
-            "date_to": "2024-01-31",
+            "date_from": "2024-01-01T00:00",
+            "date_to": "2024-01-31T12:30",
             "page": 1,
         }
         response = self.client.get(url, params)
@@ -421,8 +430,8 @@ class AdminMessageListViewTests(TestCase):
         self.assertNotIn("user", user_query)
         self.assertEqual(user_query.get("status"), [MessageStatus.DELIVERED])
         self.assertEqual(user_query.get("provider"), [str(self.provider.pk)])
-        self.assertEqual(user_query.get("date_from"), ["2024-01-01"])
-        self.assertEqual(user_query.get("date_to"), ["2024-01-31"])
+        self.assertEqual(user_query.get("date_from"), ["2024-01-01T00:00"])
+        self.assertEqual(user_query.get("date_to"), ["2024-01-31T12:30"])
         self.assertNotIn("page", user_query)
 
         status_chip = chips["status"]
