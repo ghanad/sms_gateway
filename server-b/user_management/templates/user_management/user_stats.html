@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock extra_head %}
+
+{% block content %}
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1 class="title">User Activity Report</h1>
+                <p class="subtitle">Review messaging performance across all users.</p>
+            </div>
+        </div>
+
+        <section class="card">
+            <div class="card__body">
+                <form method="get" class="form" style="margin-bottom: 1.5rem;">
+                    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                        <div>
+                            <label class="label" for="id_from">From</label>
+                            <input id="id_from" type="date" name="from" value="{{ filters.from }}">
+                        </div>
+                        <div>
+                            <label class="label" for="id_to">To</label>
+                            <input id="id_to" type="date" name="to" value="{{ filters.to }}">
+                        </div>
+                        <div class="flex items-end" style="gap: 0.75rem;">
+                            <button type="submit" class="btn btn-primary">Apply</button>
+                            <a href="{% url 'user_stats' %}" class="btn">Reset</a>
+                        </div>
+                    </div>
+                </form>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Total Messages</th>
+                                <th>Successful</th>
+                                <th>Failed</th>
+                                <th>Last Sent Date</th>
+                                <th>Last Login</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in user_stats %}
+                                <tr>
+                                    <td><strong>{{ user.username }}</strong></td>
+                                    <td>{{ user.total_messages|default:0 }}</td>
+                                    <td>{{ user.successful_messages|default:0 }}</td>
+                                    <td>{{ user.failed_messages|default:0 }}</td>
+                                    <td>
+                                        {% if user.last_sent %}
+                                            {{ user.last_sent|date:"Y-m-d H:i" }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.last_login %}
+                                            {{ user.last_login|date:"Y-m-d H:i" }}
+                                        {% else %}
+                                            Never
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="6">No users found.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+{% endblock content %}

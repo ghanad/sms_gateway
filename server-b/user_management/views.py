@@ -11,7 +11,20 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import CreateView, DeleteView, ListView, UpdateView, View
+from datetime import datetime, time
+
+from django.db.models import Count, Max, Q
+from django.utils import timezone
+from django.views.generic import (
+    CreateView,
+    DeleteView,
+    ListView,
+    TemplateView,
+    UpdateView,
+    View,
+)
+
+from messaging.models import MessageStatus
 
 from .forms import CustomUserChangeForm, CustomUserCreationForm
 from .utils import generate_server_a_config_data
@@ -140,3 +153,63 @@ def my_profile(request):
     }
 
     return render(request, "user_management/my_profile.html", context)
+
+
+class UserStatsView(StaffRequiredMixin, TemplateView):
+    template_name = "user_management/user_stats.html"
+
+    def _parse_date(self, date_string, *, is_end=False):
+        if not date_string:
+            return None
+
+        try:
+            date_value = datetime.strptime(date_string, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            return None
+
+        base_time = time.max if is_end else time.min
+        combined = datetime.combine(date_value, base_time)
+        if timezone.is_naive(combined):
+            combined = timezone.make_aware(combined, timezone.get_current_timezone())
+        return combined
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        date_from = self._parse_date(self.request.GET.get("from"))
+        date_to = self._parse_date(self.request.GET.get("to"), is_end=True)
+
+        base_filter = Q()
+        if date_from:
+            base_filter &= Q(messages__created_at__gte=date_from)
+        if date_to:
+            base_filter &= Q(messages__created_at__lte=date_to)
+
+        success_statuses = [
+            MessageStatus.SENT_TO_PROVIDER,
+            MessageStatus.DELIVERED,
+        ]
+
+        users = (
+            User.objects.all()
+            .annotate(
+                total_messages=Count("messages", filter=base_filter),
+                successful_messages=Count(
+                    "messages",
+                    filter=base_filter & Q(messages__status__in=success_statuses),
+                ),
+                failed_messages=Count(
+                    "messages",
+                    filter=base_filter & Q(messages__status=MessageStatus.FAILED),
+                ),
+                last_sent=Max("messages__created_at", filter=base_filter),
+            )
+            .order_by("username")
+        )
+
+        context["user_stats"] = users
+        context["filters"] = {
+            "from": self.request.GET.get("from", ""),
+            "to": self.request.GET.get("to", ""),
+        }
+        return context
