@@ -334,7 +334,7 @@
                                     <td>{{ user.failed_messages|default:0 }}</td>
                                     <td>
                                         {% if user.total_cost is not None %}
-                                            IRT {{ user.total_cost|rial_to_toman|default:"N/A" }}
+                                            {{ user.total_cost|rial_to_toman|default:"N/A" }}
                                         {% else %}
                                             N/A
                                         {% endif %}
