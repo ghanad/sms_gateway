@@ -13,7 +13,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime, time
 
-from django.db.models import Count, Max, Q
+from django.db.models import Count, Max, Q, Sum
 from django.utils import timezone
 from django.views.generic import (
     CreateView,
@@ -202,6 +202,7 @@ class UserStatsView(StaffRequiredMixin, TemplateView):
                     "messages",
                     filter=base_filter & Q(messages__status=MessageStatus.FAILED),
                 ),
+                total_cost=Sum("messages__cost", filter=base_filter),
                 last_sent=Max("messages__created_at", filter=base_filter),
             )
             .order_by("username")
