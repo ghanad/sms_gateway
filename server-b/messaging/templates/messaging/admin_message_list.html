@@ -89,18 +89,31 @@
         }
         .filters-panel__fields {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(12, minmax(0, 1fr));
             gap: 1rem;
         }
         .filters-panel__field {
             display: flex;
             flex-direction: column;
             gap: 0.4rem;
+            grid-column: span 12;
+        }
+        .filters-panel__field--span-4 {
+            grid-column: span 4;
+        }
+        .filters-panel__field--span-6 {
+            grid-column: span 6;
         }
         .filters-panel__field label {
             font-weight: 600;
             font-size: 0.85rem;
             color: var(--muted);
+        }
+        @media (max-width: 1024px) {
+            .filters-panel__field--span-4,
+            .filters-panel__field--span-6 {
+                grid-column: span 12;
+            }
         }
         .filters-panel__field .input {
             width: 100%;
@@ -243,35 +256,35 @@
                         <div class="filters-panel__errors">{{ filter_form.non_field_errors }}</div>
                     {% endif %}
                     <div class="filters-panel__fields">
-                        <div class="filters-panel__field">
+                        <div class="filters-panel__field filters-panel__field--span-4">
                             {{ filter_form.username.label_tag }}
                             {{ filter_form.username }}
                             {% if filter_form.username.errors %}
                                 <div class="filters-panel__errors">{{ filter_form.username.errors|join:', ' }}</div>
                             {% endif %}
                         </div>
-                        <div class="filters-panel__field">
+                        <div class="filters-panel__field filters-panel__field--span-4">
                             {{ filter_form.status.label_tag }}
                             {{ filter_form.status }}
                             {% if filter_form.status.errors %}
                                 <div class="filters-panel__errors">{{ filter_form.status.errors|join:', ' }}</div>
                             {% endif %}
                         </div>
-                        <div class="filters-panel__field">
+                        <div class="filters-panel__field filters-panel__field--span-4">
                             {{ filter_form.provider.label_tag }}
                             {{ filter_form.provider }}
                             {% if filter_form.provider.errors %}
                                 <div class="filters-panel__errors">{{ filter_form.provider.errors|join:', ' }}</div>
                             {% endif %}
                         </div>
-                        <div class="filters-panel__field">
+                        <div class="filters-panel__field filters-panel__field--span-6">
                             {{ filter_form.date_from.label_tag }}
                             {{ filter_form.date_from }}
                             {% if filter_form.date_from.errors %}
                                 <div class="filters-panel__errors">{{ filter_form.date_from.errors|join:', ' }}</div>
                             {% endif %}
                         </div>
-                        <div class="filters-panel__field">
+                        <div class="filters-panel__field filters-panel__field--span-6">
                             {{ filter_form.date_to.label_tag }}
                             {{ filter_form.date_to }}
                             {% if filter_form.date_to.errors %}
