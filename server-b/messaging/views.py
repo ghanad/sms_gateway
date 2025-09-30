@@ -1,4 +1,5 @@
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.utils import dateformat
 from django.views.generic import ListView, DetailView
 from .models import Message
 from .forms import MessageFilterForm
@@ -82,11 +83,82 @@ class AdminMessageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         context['active_filters'] = active_filters
         context['active_filter_count'] = len(active_filters)
         context['filter_panel_open'] = bool(active_filters or filter_form.errors)
+
+        query_params = self.request.GET.copy()
+        if 'page' in query_params:
+            query_params.pop('page')
+
+        active_filter_chips = []
+
+        def build_remove_url(*field_names):
+            reduced = query_params.copy()
+            for name in field_names:
+                if name in reduced:
+                    reduced.pop(name)
+            encoded = reduced.urlencode()
+            return f"{self.request.path}?{encoded}" if encoded else self.request.path
+
         user_filter_display = None
         user_value = active_filters.get('user') if active_filters else None
         if user_value:
             user_filter_display = filter_form.fields['user'].label_from_instance(user_value)
+            active_filter_chips.append(
+                {
+                    'field': 'user',
+                    'label': filter_form.fields['user'].label,
+                    'value': user_filter_display,
+                    'remove_url': build_remove_url('user'),
+                }
+            )
         context['active_filter_user_display'] = user_filter_display
+
+        status_value = active_filters.get('status') if active_filters else None
+        if status_value:
+            status_label = dict(filter_form.fields['status'].choices).get(status_value, status_value)
+            active_filter_chips.append(
+                {
+                    'field': 'status',
+                    'label': filter_form.fields['status'].label,
+                    'value': status_label,
+                    'remove_url': build_remove_url('status'),
+                }
+            )
+
+        provider_value = active_filters.get('provider') if active_filters else None
+        if provider_value:
+            active_filter_chips.append(
+                {
+                    'field': 'provider',
+                    'label': filter_form.fields['provider'].label,
+                    'value': provider_value.name,
+                    'remove_url': build_remove_url('provider'),
+                }
+            )
+
+        date_from_value = active_filters.get('date_from') if active_filters else None
+        if date_from_value:
+            active_filter_chips.append(
+                {
+                    'field': 'date_from',
+                    'label': filter_form.fields['date_from'].label,
+                    'value': dateformat.format(date_from_value, 'M j, Y'),
+                    'remove_url': build_remove_url('date_from'),
+                }
+            )
+
+        date_to_value = active_filters.get('date_to') if active_filters else None
+        if date_to_value:
+            active_filter_chips.append(
+                {
+                    'field': 'date_to',
+                    'label': filter_form.fields['date_to'].label,
+                    'value': dateformat.format(date_to_value, 'M j, Y'),
+                    'remove_url': build_remove_url('date_to'),
+                }
+            )
+
+        context['active_filter_chips'] = active_filter_chips
+
         paginator = context.get('paginator')
         page_obj = context.get('page_obj')
         if paginator and page_obj:

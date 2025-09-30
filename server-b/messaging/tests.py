@@ -3,6 +3,7 @@ import uuid
 import os
 from datetime import timedelta
 from decimal import Decimal
+from urllib.parse import parse_qs, urlparse
 
 import django
 import pika
@@ -384,6 +385,10 @@ class AdminMessageListViewTests(TestCase):
         self.assertEqual(response.context["active_filter_count"], 1)
         self.assertEqual(response.context["active_filters"]["user"], self.staff)
         self.assertEqual(response.context["active_filter_user_display"], "admin")
+        chips = response.context["active_filter_chips"]
+        self.assertEqual(len(chips), 1)
+        self.assertEqual(chips[0]["field"], "user")
+        self.assertIn("remove_url", chips[0])
 
     def test_filter_panel_opens_when_form_has_errors(self):
         self.client.login(username="admin", password="pass")
@@ -392,6 +397,40 @@ class AdminMessageListViewTests(TestCase):
 
         self.assertTrue(response.context["filter_panel_open"])
         self.assertTrue(response.context["filter_form"].errors)
+
+    def test_active_filter_chips_provide_single_filter_removal_links(self):
+        self.client.login(username="admin", password="pass")
+        url = reverse("messaging:admin_messages_list")
+        params = {
+            "user": str(self.staff.pk),
+            "status": MessageStatus.DELIVERED,
+            "provider": str(self.provider.pk),
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-31",
+            "page": 1,
+        }
+        response = self.client.get(url, params)
+
+        chips = {chip["field"]: chip for chip in response.context["active_filter_chips"]}
+
+        self.assertEqual(set(chips.keys()), {"user", "status", "provider", "date_from", "date_to"})
+
+        user_chip = chips["user"]
+        parsed_user = urlparse(user_chip["remove_url"])
+        user_query = parse_qs(parsed_user.query)
+        self.assertNotIn("user", user_query)
+        self.assertEqual(user_query.get("status"), [MessageStatus.DELIVERED])
+        self.assertEqual(user_query.get("provider"), [str(self.provider.pk)])
+        self.assertEqual(user_query.get("date_from"), ["2024-01-01"])
+        self.assertEqual(user_query.get("date_to"), ["2024-01-31"])
+        self.assertNotIn("page", user_query)
+
+        status_chip = chips["status"]
+        parsed_status = urlparse(status_chip["remove_url"])
+        status_query = parse_qs(parsed_status.query)
+        self.assertNotIn("status", status_query)
+        self.assertEqual(status_query.get("user"), [str(self.staff.pk)])
+
 
 
 class ProcessOutboundSmsTaskTests(TestCase):

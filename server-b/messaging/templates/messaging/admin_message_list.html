@@ -206,15 +206,66 @@
         .filters-panel__chip {
             display: inline-flex;
             align-items: center;
-            gap: 0.35rem;
-            padding: 0.35rem 0.75rem;
+            gap: 0.5rem;
+            padding: 0.45rem 0.75rem;
             border-radius: 999px;
             background: #fff;
-            border: 1px solid rgba(15, 23, 42, 0.08);
+            border: 1px solid rgba(15, 23, 42, 0.12);
             font-size: 0.8rem;
             color: var(--muted);
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
         }
-        .filters-panel__chip strong {
+        .filters-panel__chip:hover,
+        .filters-panel__chip:focus,
+        .filters-panel__chip:focus-visible {
+            background: rgba(15, 23, 42, 0.08);
+            border-color: rgba(15, 23, 42, 0.18);
+            color: var(--text);
+            outline: none;
+        }
+        .filters-panel__chip-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.5rem;
+            height: 1.5rem;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 23, 42, 0.15);
+            background: rgba(239, 68, 68, 0.12);
+            color: rgba(220, 38, 38, 1);
+            font-weight: 700;
+            font-size: 0.95rem;
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+            flex-shrink: 0;
+        }
+        .filters-panel__chip:hover .filters-panel__chip-icon,
+        .filters-panel__chip:focus .filters-panel__chip-icon,
+        .filters-panel__chip:focus-visible .filters-panel__chip-icon {
+            background: rgba(220, 38, 38, 0.18);
+            border-color: rgba(220, 38, 38, 0.35);
+            color: #fff;
+        }
+        .filters-panel__chip-text {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            white-space: nowrap;
+            opacity: 0;
+            max-width: 0;
+            transform: translateX(-0.35rem);
+            transition: opacity 0.2s ease, max-width 0.2s ease, transform 0.2s ease;
+        }
+        .filters-panel__chip:hover .filters-panel__chip-text,
+        .filters-panel__chip:focus .filters-panel__chip-text,
+        .filters-panel__chip:focus-visible .filters-panel__chip-text {
+            opacity: 1;
+            max-width: 18rem;
+            transform: translateX(0);
+        }
+        .filters-panel__chip-text strong {
             color: var(--text);
             font-weight: 600;
         }
@@ -369,28 +420,12 @@
                     {% if active_filters %}
                         <div class="filters-panel__active">
                             <span class="filters-panel__active-label">Active filters:</span>
-                            {% if active_filters.user %}
-                                <span class="filters-panel__chip">User: <strong>{{ active_filter_user_display }}</strong></span>
-                            {% endif %}
-                            {% if active_filters.status %}
-                                <span class="filters-panel__chip">
-                                    Status:
-                                    <strong>
-                                        {% for value, label in filter_form.fields.status.choices %}
-                                            {% if value == active_filters.status %}{{ label }}{% endif %}
-                                        {% endfor %}
-                                    </strong>
-                                </span>
-                            {% endif %}
-                            {% if active_filters.provider %}
-                                <span class="filters-panel__chip">Provider: <strong>{{ active_filters.provider.name }}</strong></span>
-                            {% endif %}
-                            {% if active_filters.date_from %}
-                                <span class="filters-panel__chip">From: <strong>{{ active_filters.date_from|date:'M j, Y' }}</strong></span>
-                            {% endif %}
-                            {% if active_filters.date_to %}
-                                <span class="filters-panel__chip">To: <strong>{{ active_filters.date_to|date:'M j, Y' }}</strong></span>
-                            {% endif %}
+                            {% for chip in active_filter_chips %}
+                                <a href="{{ chip.remove_url }}" class="filters-panel__chip" aria-label="Remove {{ chip.label }} filter" title="{{ chip.label }}: {{ chip.value }}">
+                                    <span class="filters-panel__chip-icon" aria-hidden="true">&minus;</span>
+                                    <span class="filters-panel__chip-text">{{ chip.label }}: <strong>{{ chip.value }}</strong></span>
+                                </a>
+                            {% endfor %}
                         </div>
                     {% endif %}
                 </div>
