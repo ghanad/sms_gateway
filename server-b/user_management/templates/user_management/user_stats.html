@@ -341,14 +341,14 @@
                                     </td>
                                     <td>
                                         {% if user.last_sent %}
-                                            {{ user.last_sent|date:"Y-m-d H:i" }}
+                                            <span class="utc-time" data-utc="{{ user.last_sent|date:'c' }}">{{ user.last_sent|date:"Y-m-d H:i" }}</span>
                                         {% else %}
                                             N/A
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if user.last_login %}
-                                            {{ user.last_login|date:"Y-m-d H:i" }}
+                                            <span class="utc-time" data-utc="{{ user.last_login|date:'c' }}">{{ user.last_login|date:"Y-m-d H:i" }}</span>
                                         {% else %}
                                             Never
                                         {% endif %}
