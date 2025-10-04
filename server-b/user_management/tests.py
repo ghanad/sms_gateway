@@ -156,7 +156,7 @@ class UserStatsViewTests(TestCase):
         self.alice = User.objects.create_user("alice", "alice@example.com", "pass")
         self.bob = User.objects.create_user("bob", "bob@example.com", "pass")
 
-        now = timezone.now()
+        self.now = timezone.now().replace(microsecond=0)
 
         messages = [
             Message(
@@ -196,8 +196,10 @@ class UserStatsViewTests(TestCase):
         Message.objects.bulk_create(messages)
 
         # Adjust timestamps for deterministic filtering checks
-        Message.objects.filter(user=self.alice).update(created_at=now)
-        Message.objects.filter(user=self.bob).update(created_at=now - timedelta(days=10))
+        Message.objects.filter(user=self.alice).update(created_at=self.now)
+        Message.objects.filter(user=self.bob).update(
+            created_at=self.now - timedelta(days=10)
+        )
 
     def test_staff_can_view_aggregated_user_stats(self):
         response = self.client.get(reverse("user_stats"))
@@ -249,3 +251,21 @@ class UserStatsViewTests(TestCase):
 
         # Ensure filter values are echoed back in the context.
         self.assertEqual(response.context["filters"], {"from": target_date, "to": target_date})
+
+    def test_timestamp_cells_include_timezone_metadata(self):
+        last_login = self.now - timedelta(hours=2)
+        self.alice.last_login = last_login
+        self.alice.save(update_fields=["last_login"])
+
+        response = self.client.get(reverse("user_stats"))
+        content = response.content.decode()
+
+        expected_last_sent_html = (
+            f'<span class="utc-time" data-utc="{self.now.isoformat()}">{self.now.strftime("%Y-%m-%d %H:%M")}</span>'
+        )
+        expected_last_login_html = (
+            f'<span class="utc-time" data-utc="{last_login.isoformat()}">{last_login.strftime("%Y-%m-%d %H:%M")}</span>'
+        )
+
+        self.assertInHTML(expected_last_sent_html, content)
+        self.assertInHTML(expected_last_login_html, content)
