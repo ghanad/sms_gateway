@@ -17,12 +17,12 @@ class SendSmsRequest:
 
         v = self.to.strip()
 
-        e164_regex = r"^\+\d{1,15}$"
+        e164_regex = r"^\+989\d{9}$"
         if v.startswith('+'):
             if re.fullmatch(e164_regex, v):
                 self.to = v
                 return
-            raise ValueError("Phone must be valid E.164 like +98912xxxxxxx.")
+            raise ValueError("Phone must be +989xxxxxxxxx, 09xxxxxxxxx, or 9xxxxxxxxx.")
 
         compact = re.sub(r"[\s\-()]+", "", v)
 
@@ -34,7 +34,7 @@ class SendSmsRequest:
             self.to = "+98" + compact
             return
 
-        raise ValueError("Phone must be 0912xxxxxxx or valid E.164 like +98912xxxxxxx.")
+        raise ValueError("Phone must be +989xxxxxxxxx, 09xxxxxxxxx, or 9xxxxxxxxx.")
 
 @dataclass
 class SendSmsResponse:

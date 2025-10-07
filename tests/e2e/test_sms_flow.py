@@ -53,7 +53,7 @@ def wait_for_server_a_ready(max_retries=10, delay_seconds=5):
 def _send_request():
     """Sends a standard request to send an SMS to Server A."""
     payload = {
-        "to": "+15555550100",
+        "to": "+989121234567",
         "text": "test message",
         "providers": ["ProviderA"],
     }
