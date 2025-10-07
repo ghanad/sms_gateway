@@ -14,7 +14,7 @@ pytestmark = pytest.mark.skipif(
 
 def _send_request(provider_name: str) -> requests.Response:
     payload = {
-        "to": "+15555550100",
+        "to": "+989121234567",
         "text": "test message",
         "providers": [provider_name],
         "ttl_seconds": 3600,
