@@ -49,7 +49,7 @@ async def test_publish_sms_message_publishes_and_closes_connection():
         await publish_sms_message(
             user_id=1,
             client_key="client1",
-            to="+1234567890",
+            to="+989001234567",
             text="Hello",
             ttl_seconds=60,
             providers_original=["ProviderA"],
@@ -70,7 +70,7 @@ async def test_publish_sms_message_publishes_and_closes_connection():
         "tracking_id": str(tracking_id),
         "user_id": 1,
         "client_key": "client1",
-        "to": "+1234567890",
+        "to": "+989001234567",
         "text": "Hello",
         "ttl_seconds": 60,
         "providers_original": ["ProviderA"],

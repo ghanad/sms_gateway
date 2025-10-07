@@ -81,7 +81,7 @@ print("پاسخ:", response.json())
   ```json
   {
     "error_code": "INVALID_PAYLOAD",
-    "message": "Phone must be 0912xxxxxxx or valid E.164 like +98912xxxxxxx.",
+    "message": "Phone must be +989xxxxxxxxx, 09xxxxxxxxx, or 9xxxxxxxxx.",
     "tracking_id": "f1c8b84a-6f0a-4c2a-9d5d-6b679ddf3c1b",
     "timestamp": "2024-01-01T12:00:01.000000"
   }

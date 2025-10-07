@@ -92,7 +92,7 @@ def mock_dependencies(mock_settings):
 @pytest.mark.asyncio
 async def test_send_sms_success(mock_dependencies):
     sms_request_payload = {
-        "to": "+1234567890",
+        "to": "+989121234567",
         "text": "Hello, world!",
         "providers": ["ProviderA"],
         "ttl_seconds": 3600
@@ -133,7 +133,7 @@ async def test_send_sms_success(mock_dependencies):
 async def test_send_sms_idempotency_key_stores_response(mock_dependencies, mock_settings):
     idempotency_key = "unique-idempotency-key"
     sms_request_payload = {
-        "to": "+1234567890",
+        "to": "+989121234567",
         "text": "Hello, world!",
         "providers": ["ProviderA"],
         "ttl_seconds": 3600
@@ -178,7 +178,7 @@ async def test_send_sms_idempotency_key_returns_cached_response(mock_dependencie
     mock_dependencies["redis_client"].get.return_value = json.dumps(cached_data).encode('utf-8')
 
     sms_request_payload = {
-        "to": "+1234567890",
+        "to": "+989121234567",
         "text": "Hello, world!",
         "providers": ["ProviderA"],
         "ttl_seconds": 3600
@@ -200,7 +200,7 @@ async def test_send_sms_idempotency_key_returns_cached_response(mock_dependencie
 @pytest.mark.asyncio
 async def test_send_sms_unauthorized(mock_dependencies):
     sms_request_payload = {
-        "to": "+1234567890",
+        "to": "+989121234567",
         "text": "Hello, world!",
     }
     mock_dependencies["get_client_context"].side_effect = HTTPException(
@@ -237,7 +237,81 @@ async def test_send_sms_invalid_payload(mock_dependencies):
         )
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY # Pydantic validation error
-    assert response.json()["error_code"] == "INVALID_PAYLOAD" # Our custom handler maps 422 to INVALID_PAYLOAD
+    response_json = response.json()
+    assert response_json["error_code"] == "INVALID_PAYLOAD" # Our custom handler maps 422 to INVALID_PAYLOAD
+    assert response_json["message"] == "Phone must be +989xxxxxxxxx, 09xxxxxxxxx, or 9xxxxxxxxx."
+    mock_dependencies["get_client_context"].assert_called_once()
+    mock_dependencies["provider_gate_process_providers"].assert_not_called()
+    mock_dependencies["enforce_daily_quota"].assert_not_called()
+    mock_dependencies["publish_sms_message"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_sms_rejects_long_e164_number(mock_dependencies):
+    sms_request_payload = {
+        "to": "+9891212345678",  # Extra digit beyond supported format
+        "text": "Hello, world!",
+    }
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/sms/send",
+            headers={"API-Key": "client_key_1"},
+            json=sms_request_payload
+        )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    response_json = response.json()
+    assert response_json["error_code"] == "INVALID_PAYLOAD"
+    assert response_json["message"] == "Phone must be +989xxxxxxxxx, 09xxxxxxxxx, or 9xxxxxxxxx."
+    mock_dependencies["get_client_context"].assert_called_once()
+    mock_dependencies["provider_gate_process_providers"].assert_not_called()
+    mock_dependencies["enforce_daily_quota"].assert_not_called()
+    mock_dependencies["publish_sms_message"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_sms_rejects_long_local_number_with_zero(mock_dependencies):
+    sms_request_payload = {
+        "to": "091212345678",  # Extra digit in local format
+        "text": "Hello, world!",
+    }
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/sms/send",
+            headers={"API-Key": "client_key_1"},
+            json=sms_request_payload
+        )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    response_json = response.json()
+    assert response_json["error_code"] == "INVALID_PAYLOAD"
+    assert response_json["message"] == "Phone must be +989xxxxxxxxx, 09xxxxxxxxx, or 9xxxxxxxxx."
+    mock_dependencies["get_client_context"].assert_called_once()
+    mock_dependencies["provider_gate_process_providers"].assert_not_called()
+    mock_dependencies["enforce_daily_quota"].assert_not_called()
+    mock_dependencies["publish_sms_message"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_sms_rejects_long_local_number_without_zero(mock_dependencies):
+    sms_request_payload = {
+        "to": "912123456789",  # Extra digit in shortened local format
+        "text": "Hello, world!",
+    }
+
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/sms/send",
+            headers={"API-Key": "client_key_1"},
+            json=sms_request_payload
+        )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    response_json = response.json()
+    assert response_json["error_code"] == "INVALID_PAYLOAD"
+    assert response_json["message"] == "Phone must be +989xxxxxxxxx, 09xxxxxxxxx, or 9xxxxxxxxx."
     mock_dependencies["get_client_context"].assert_called_once()
     mock_dependencies["provider_gate_process_providers"].assert_not_called()
     mock_dependencies["enforce_daily_quota"].assert_not_called()
@@ -246,7 +320,7 @@ async def test_send_sms_invalid_payload(mock_dependencies):
 @pytest.mark.asyncio
 async def test_send_sms_provider_gate_rejection(mock_dependencies):
     sms_request_payload = {
-        "to": "+1234567890",
+        "to": "+989121234567",
         "text": "Hello, world!",
         "providers": ["UnknownProvider"]
     }
@@ -271,7 +345,7 @@ async def test_send_sms_provider_gate_rejection(mock_dependencies):
 @pytest.mark.asyncio
 async def test_send_sms_quota_rejection(mock_dependencies):
     sms_request_payload = {
-        "to": "+1234567890",
+        "to": "+989121234567",
         "text": "Hello, world!",
         "providers": ["ProviderA"]
     }
@@ -296,7 +370,7 @@ async def test_send_sms_quota_rejection(mock_dependencies):
 @pytest.mark.asyncio
 async def test_send_sms_rabbitmq_failure(mock_dependencies):
     sms_request_payload = {
-        "to": "+1234567890",
+        "to": "+989121234567",
         "text": "Hello, world!",
         "providers": ["ProviderA"]
     }
