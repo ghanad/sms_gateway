@@ -56,6 +56,11 @@ class Command(BaseCommand):
                 logger.warning("Invalid JSON message discarded: %r", body)
                 ch.basic_ack(delivery_tag=method.delivery_tag)
                 return
+            
+            if "tracking_id" not in envelope:
+                logger.error("Message missing 'tracking_id', discarding: %r", body)
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                return
 
             persistent_props = pika.BasicProperties(delivery_mode=2)
 
