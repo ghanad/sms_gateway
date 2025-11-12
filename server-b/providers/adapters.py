@@ -2,9 +2,12 @@
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+import logging
 import requests
 
 from .models import SmsProvider, ProviderType
+
+logger = logging.getLogger(__name__)
 
 class BaseSmsProvider:
     def __init__(self, provider: SmsProvider):
@@ -144,8 +147,11 @@ class MagfaSmsProvider(BaseSmsProvider):
         except requests.exceptions.RequestException as e:
             return {'error': str(e)}
 
+
     def check_status(self, message_ids: list) -> dict:
+        logger.info(f"Checking status for {len(message_ids)} message IDs.")
         if not message_ids:
+            logger.warning("No message IDs provided for status check.")
             return {}
 
         headers = {
@@ -158,52 +164,61 @@ class MagfaSmsProvider(BaseSmsProvider):
             auth = (username, password)
 
         base_url = self.provider.send_url.rsplit('/', 1)[0]
-        mids = ','.join(str(mid) for mid in message_ids)
-        statuses_url = f"{base_url}/statuses/{mids}"
-
-        try:
-            response = requests.get(
-                statuses_url,
-                headers=headers,
-                auth=auth,
-                timeout=self.provider.timeout_seconds,
-            )
-            response.raise_for_status()
-            data = response.json()
-        except (requests.exceptions.Timeout, requests.exceptions.RequestException, ValueError):
-            return {}
-
+        results = {}
         status_map = {
-            1: 'DELIVERED',
-            8: 'DELIVERED',
-            2: 'FAILED',
-            16: 'FAILED',
+            1: 'DELIVERED', 8: 'DELIVERED',
+            2: 'FAILED', 16: 'FAILED',
         }
 
-        results = {}
-        for entry in data.get('dlrs', []):
-            mid = entry.get('mid')
-            status_code = entry.get('status')
-            mapped_status = status_map.get(status_code)
-            if mid is None or mapped_status is None:
-                continue
+        # Iterating and sending one request per message ID
+        for mid in message_ids:
+            statuses_url = f"{base_url}/statuses/{mid}"
+            logger.debug(f"Requesting status for mid {mid} from URL: {statuses_url}")
+            
+            try:
+                response = requests.get(
+                    statuses_url,
+                    headers=headers,
+                    auth=auth,
+                    timeout=self.provider.timeout_seconds,
+                )
+                response.raise_for_status()
+                data = response.json()
+                logger.debug(f"Received status response for mid {mid}: {data}")
+            except (requests.exceptions.Timeout, requests.exceptions.RequestException, ValueError) as e:
+                logger.error(f"Error checking status for message ID {mid}: {e}")
+                continue  # Continue to the next message ID
 
-            delivered_at = entry.get('date')
-            if isinstance(delivered_at, str):
-                try:
-                    delivered_at = datetime.strptime(delivered_at, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
+            # The response for a single status check is different.
+            # Based on MAGFA.md, it should be like: {"status": 0, "dlrs": [...]}
+            # but the response for a single ID might be simpler. Let's assume it's still in `dlrs`.
+            for entry in data.get('dlrs', []):
+                entry_mid = entry.get('mid')
+                if str(entry_mid) != str(mid):
+                    continue
+
+                status_code = entry.get('status')
+                mapped_status = status_map.get(status_code)
+                if mapped_status is None:
+                    logger.warning(f"Skipping entry for mid {mid} due to unmapped status: {entry}")
+                    continue
+
+                delivered_at = entry.get('date')
+                if isinstance(delivered_at, str):
                     try:
-                        delivered_at = datetime.fromisoformat(delivered_at)
+                        delivered_at = datetime.strptime(delivered_at, "%Y-%m-%d %H:%M:%S")
                     except ValueError:
                         delivered_at = None
 
-            results[str(mid)] = {
-                'status': mapped_status,
-                'delivered_at': delivered_at,
-                'provider_status': status_code,
-            }
+                results[str(mid)] = {
+                    'status': mapped_status,
+                    'delivered_at': delivered_at,
+                    'provider_status': status_code,
+                }
+                # Since we found the status for this mid, we can break the inner loop
+                break
 
+        logger.info(f"Status check completed. Found results for {len(results)} IDs. Results: {results}")
         return results
 
 def get_provider_adapter(provider: SmsProvider) -> BaseSmsProvider:
